@@ -1,12 +1,17 @@
 const std = @import("std");
+const warn = std.debug.warn;
 const shader = @import("shader.zig");
+usingnamespace @import("database.zig");
 usingnamespace @import("c.zig");
 
 pub fn main() anyerror!void {
     _ = printf("hello\n");
 
+    var database = try Database.init("C:/Users/kenny/Desktop/neuro.db");
+    defer database.deinit();
+
     if (glfwInit() == 0) {
-        std.debug.warn("could not initialize glfw\n", .{});
+        warn("could not initialize glfw\n", .{});
         return error.GLFWInitFailed;
     }
     defer glfwTerminate();
@@ -17,30 +22,35 @@ pub fn main() anyerror!void {
 
     const vid_mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 
-    const window = glfwCreateWindow(
-        @divTrunc(vid_mode.*.width, 2),
-        @divTrunc(vid_mode.*.height, 2),
-        "neuro-zig",
-        null,
-        null
-    ) orelse return error.GlfwCreateWindowFailed;
+    const window = glfwCreateWindow(@divTrunc(vid_mode.*.width, 2), @divTrunc(vid_mode.*.height, 2), "neuro-zig", null, null) orelse return error.GlfwCreateWindowFailed;
     defer glfwDestroyWindow(window);
 
     glfwMakeContextCurrent(window);
 
     if (gladLoadGLLoader(@ptrCast(GLADloadproc, glfwGetProcAddress)) == 0) {
-        std.debug.warn("could not initialize glad\n", .{});
+        warn("could not initialize glad\n", .{});
         return;
     }
 
-    const id = shader.Shader.loadShader(
-        "shaders\\vertex.glsl",
-        GL_VERTEX_SHADER
-    );
+    const shader_source = [_]shader.ShaderSource{
+        .{
+            .shader_type = GL_VERTEX_SHADER,
+            .source = "shaders/vertex.glsl",
+        },
+        .{
+            .shader_type = GL_FRAGMENT_SHADER,
+            .source = "shaders/fragment.glsl",
+        },
+    };
 
-    std.debug.warn("shader id: {} \n", .{id});
+    const s = try shader.Shader.init(shader_source);
+    warn("shader program id: {}\n", .{s.program});
 
     while (glfwWindowShouldClose(window) == 0) {
+        glUseProgram(s.program);
+        glClearColor(0.25, 0.22, 0.25, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glfwSwapBuffers(window);
         glfwPollEvents();
     }
 }
