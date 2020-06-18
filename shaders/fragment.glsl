@@ -2,8 +2,9 @@
 
 #extension GL_ARB_bindless_texture : require
 
-out vec4 colour;
+in vec4 colour;
+out vec4 fb_colour;
 
 void main() {
-    colour = vec4(0.75, 0.75, 0.75, 1.0);
+    fb_colour = colour;
 }
