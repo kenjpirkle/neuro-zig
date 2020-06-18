@@ -6,9 +6,7 @@ pub fn build(b: *Builder) void {
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{
-        .default_target = .{
-            .abi = .gnu
-        }
+        .default_target = .{ .abi = .gnu },
     });
 
     // Standard release options allow the person running `zig build` to select
@@ -23,10 +21,14 @@ pub fn build(b: *Builder) void {
     exe.linkSystemLibrary("pthread");
     exe.addIncludeDir("deps/GLFW/include");
     exe.addIncludeDir("deps/glad/include/glad");
-    exe.addCSourceFile(
-        "deps/glad/src/glad.c",
-        &[_][]const u8{ "-Ideps/glad/include/", "-O3" }
-    );
+    exe.addCSourceFile("deps/glad/src/glad.c", &[_][]const u8{ "-Ideps/glad/include/", "-O3" });
+    exe.addIncludeDir("deps/sqlite3/include/");
+    exe.addCSourceFile("deps/sqlite3/src/sqlite3.c", &[_][]const u8{
+        "-Ideps/sqlite3/include/",
+        "-DSQLITE_ENABLE_FTS5",
+        "-O3",
+        "-fno-sanitize=undefined",
+    });
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
