@@ -1,6 +1,7 @@
 const std = @import("std");
 const warn = std.debug.warn;
 usingnamespace @import("c.zig");
+const ArrayList = std.ArrayList;
 
 pub const Database = struct {
     connection: *sqlite3,
@@ -21,7 +22,7 @@ pub const Database = struct {
                 var db = Database{
                     .connection = sql_connection.?,
                 };
-                try createNewSchema(sql_connection.?);
+                try createNewSchema(db);
 
                 return db;
             },
@@ -32,7 +33,7 @@ pub const Database = struct {
         _ = sqlite3_close_v2(self.connection);
     }
 
-    fn createNewSchema(connection: *sqlite3) !void {
+    fn createNewSchema(self: Database) !void {
         const stmt =
             \\begin transaction;
             \\create table stats(
@@ -139,7 +140,7 @@ pub const Database = struct {
         ;
 
         var error_message: ?[*:0]u8 = undefined;
-        const result = sqlite3_exec(connection, stmt, null, null, &error_message);
+        const result = sqlite3_exec(self.connection, stmt, null, null, &error_message);
         switch (result) {
             SQLITE_OK => {
                 return;
@@ -151,5 +152,30 @@ pub const Database = struct {
         }
 
         return;
+    }
+
+    pub fn getTagsLike(self: Database, search_term: []const u8) !ArrayList([]const u8) {
+        const source = "select tag from tags_fts where tag match ?*;";
+        var stmt: ?sqlite3_stmt = undefined;
+        sqlite3_prepare_v2(self.connection, source, source.len + 1, &stmt, SQLITE_TRANSIENT);
+
+        var results = ArrayList([]const u8).init(std.heap.c_allocator);
+
+        var done = false;
+        var bytes = 0;
+        var text: ?[*:0]const u8 = undefined;
+
+        while (done != true) {
+            switch (sqlite3_step(stmt)) {
+                SQLITE_DONE => {
+                    done = true;
+                    break;
+                },
+                SQLITE_ROW => {
+                    bytes = sqlite3_column_bytes(stmt, 0);
+                    text = sqlite3_column_text(stmt, 0);
+                },
+            }
+        }
     }
 };
