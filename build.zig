@@ -15,10 +15,14 @@ pub fn build(b: *Builder) void {
 
     const exe = b.addExecutable("neuro-zig", "src/main.zig");
     exe.addLibPath("C:/mingw64/bin");
+    exe.addLibPath("deps/freetype/lib");
     exe.linkSystemLibrary("c");
     exe.linkSystemLibrary("glfw3");
     exe.linkSystemLibrary("gdi32");
     exe.linkSystemLibrary("pthread");
+    exe.linkSystemLibrary("freetype");
+    exe.addIncludeDir("deps/freetype/include");
+    exe.addIncludeDir("deps/freetype/include/freetype");
     exe.addIncludeDir("deps/GLFW/include");
     exe.addIncludeDir("deps/glad/include/glad");
     exe.addCSourceFile("deps/glad/src/glad.c", &[_][]const u8{ "-Ideps/glad/include/", "-O3" });
