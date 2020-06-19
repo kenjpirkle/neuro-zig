@@ -1,7 +1,7 @@
 const std = @import("std");
-const warn = std.debug.warn;
-usingnamespace @import("c.zig");
 const ArrayList = std.ArrayList;
+usingnamespace @import("print.zig");
+usingnamespace @import("c.zig");
 
 pub const Database = struct {
     connection: *sqlite3,
@@ -146,7 +146,10 @@ pub const Database = struct {
                 return;
             },
             else => {
-                warn("sqlite error: {}: {}\n", .{ result, error_message });
+                print("sqlite error: ");
+                print(result);
+                print(": ");
+                printLine(error_message);
                 return error.SQLiteError;
             },
         }

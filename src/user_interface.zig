@@ -1,23 +1,23 @@
-const std = @import("std");
-const allocator = std.heap.c_allocator;
-const warn = std.debug.warn;
-usingnamespace @import("c.zig");
+const allocator = @import("std").heap.c_allocator;
+const SegmentedList = @import("std").SegmentedList;
 const Shader = @import("shader.zig").Shader;
 const ShaderSource = @import("shader.zig").ShaderSource;
 const Widget = @import("widgets/widget.zig").Widget;
+usingnamespace @import("print.zig");
+usingnamespace @import("c.zig");
 
 const UserInterfaceState = packed struct {};
 
 pub var window: *GLFWwindow = undefined;
 var video_mode: *const GLFWvidmode = undefined;
 var cursor: ?*GLFWcursor = undefined;
-var widgets: std.SegmentedList(Widget, 32) = undefined;
+var widgets: SegmentedList(Widget, 32) = undefined;
 var search_bar: u16 = undefined;
 var shader: Shader = undefined;
 
 pub fn init() !void {
     if (glfwInit() == 0) {
-        warn("could not initialize glfw\n", .{});
+        printLine("could not initialize glfw");
         return error.GLFWInitFailed;
     }
 
@@ -30,12 +30,12 @@ pub fn init() !void {
     const height = @divTrunc(video_mode.*.height, 2);
     window = glfwCreateWindow(width, height, "neuro-zig", null, null) orelse return error.GlfwCreateWindowFailed;
     cursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-    widgets = std.SegmentedList(Widget, 32).init(allocator);
+    widgets = SegmentedList(Widget, 32).init(allocator);
 
     glfwMakeContextCurrent(window);
 
     if (gladLoadGLLoader(@ptrCast(GLADloadproc, glfwGetProcAddress)) == 0) {
-        warn("could not initialize glad\n", .{});
+        printLine("could not initialize glad");
         return error.GladLoadProcsFailed;
     }
 
