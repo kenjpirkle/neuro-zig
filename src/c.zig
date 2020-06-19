@@ -4,4 +4,5 @@ pub usingnamespace @cImport({
     @cInclude("sqlite3.h");
     @cInclude("glad.h");
     @cInclude("glfw3.h");
+    @cInclude("freetype.h");
 });
