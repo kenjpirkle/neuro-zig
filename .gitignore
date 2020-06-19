@@ -1,1 +1,5 @@
 zig-cache/
+fonts/Heebo/
+fonts/Karla/
+fonts/Noto_Sans_JP/
+deps/freetype/lib/
