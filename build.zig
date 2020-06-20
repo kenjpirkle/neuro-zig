@@ -25,7 +25,10 @@ pub fn build(b: *Builder) void {
     exe.addIncludeDir("deps/freetype/include/freetype");
     exe.addIncludeDir("deps/GLFW/include");
     exe.addIncludeDir("deps/glad/include/glad");
-    exe.addCSourceFile("deps/glad/src/glad.c", &[_][]const u8{ "-Ideps/glad/include/", "-O3" });
+    exe.addCSourceFile("deps/glad/src/glad.c", &[_][]const u8{
+        "-Ideps/glad/include/",
+        "-O3",
+    });
     exe.addIncludeDir("deps/sqlite3/include/");
     exe.addCSourceFile("deps/sqlite3/src/sqlite3.c", &[_][]const u8{
         "-Ideps/sqlite3/include/",

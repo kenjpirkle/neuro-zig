@@ -37,7 +37,7 @@ pub const Shader = struct {
 
     fn loadShader(shader_source: ShaderSource) !GLuint {
         const data = try std.fs.cwd().readFileAlloc(allocator, shader_source.source, 1024 * 1024 * 1024);
-        
+
         const shader_id = glCreateShader(shader_source.shader_type);
         glShaderSource(shader_id, 1, @ptrCast([*c]const [*c]const u8, &data), null);
         glCompileShader(shader_id);
