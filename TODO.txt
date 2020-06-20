@@ -1,0 +1,127 @@
+text editing
+    piece table
+        https://code.visualstudio.com/blogs/2018/03/23/text-buffer-reimplementation
+        https://www.averylaird.com/programming/2017/09/22/the-text-editor/
+        https://web.archive.org/web/20160308183811/http://1017.songtrellisopml.com/whatsbeenwroughtusingpiecetables
+        could it fallback to a simple line array when size is small?
+            single line text editing (search bars etc) might perform better with an array/block allocator
+            "As expected, line array wins when the file is very small. Accessing a random position in a small array and tweaking a string which has around 100~150 characters is really fast. The line array starts to choke when the file has many lines (100k+)."
+        normalization to recreate buffers and nodes if certains conditions are met (high node count, high fragmentation)
+
+tag system
+    disambiguations - glass {material, liquid container}
+    seperate tables in database
+        one for tag names/disambiguations
+        one with individual tag index entries with associated item indices
+    fuzzy search when creating tags to reduce duplicate entries (ww2, WW2, World War 2 etc)
+    tag suggestions
+    categories
+
+full-text search
+    https://sqlite.org/fts5.html
+    tags
+    contents
+    soundex scoring
+    suffix tree
+    levenshtein distance
+
+arbitrary field/item content stored as a seperate row in content table for FTS5
+    content id, text content
+
+wikipedia api
+    share of donations go to wikipedia
+
+build connections between seperate items for stronger recall
+    see if it helps hard to remember items
+
+hyperlink system
+
+store instant, timezone and local-time for repetitions and other actions
+
+undo-system in repetitions, item creation, text manipulation etc
+
+incremental reading system
+    track read sections of documents/text
+    extract
+        images
+        text
+
+incorporate other memory devices
+    mneumonics
+    memory palaces
+    analogy
+    connection to other items or forms of media
+
+image occlusion
+    rectangles
+    arbitrary polygons
+
+multi-phase knowledge items
+    mathematical processes
+        matrix multiplication
+        long division
+
+latex/notation
+
+non-spaced arbitrary exposure to certain items
+    quotes
+    ideas
+    articles
+    cbt
+
+dpi adherence
+
+normalized GLubytes/GLushorts can be used for OpenGL depth values
+    every distinct value maps to a distinct 32bit floating value between 0.0 and 1.0
+
+create tests to analyze performance after every build to automatically benchmark
+
+poll clipboard every x frames using glfw for cross-platform use
+    only when keys/mouse input detected OR every x frames in case clipboard contents changes for other reason?
+    gives advantage of being able to process data before being pasted
+
+create a standard 32bit fixed sized string for cross-platform use
+store text as utf8 (as is default) in sqlite, but use 16/32bit characters in application for fast indexing etc
+    maybe only use unicode 16/32bit characters for on-screen/visible text
+
+b+tree for widget hierarchy
+    store 16/32bit indices to child widgets; stored in a block allocator
+    gpu widget hierarchy possible?
+
+redraw certain sections of frame?
+
+implement gpu order-independent transparency
+
+call glfwPollEvents when playing animations
+
+handle text character offsets with atomic counter on gpu
+
+compact colour indices if all vertices share same colour
+
+allow widgets to access user_interface graphical data directly to get rid of pointers
+
+kraken compression
+
+draw_state doesn't work properly without seperate animating and draw_required flags
+
+compressing quad vertex data if all on the same x/y position, depth, colour etc
+
+use one shader for text and rects (anything that uses a quad) and implement persistant mapped buffer
+
+colour data should be 4 byte packed unsigned bytes, colour indices unsigned bytes/shorts/ints
+
+disable input but not animation when resizing window
+
+stuff the layer bits into spare 32 bit character bits
+
+database tables necessary
+    stats
+    tags
+    tag disambiguations
+    card metadata
+    repetition log
+    item schemas
+    item content fields
+    card schemas
+    cards
+    decks?
