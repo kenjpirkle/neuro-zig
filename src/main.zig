@@ -17,7 +17,6 @@ pub fn main() anyerror!void {
         printLine("could not load font: " ++ font_face);
         return error.FreeTypeLoadFaceFailed;
     }
-    printLine("successfully loaded: " ++ font_face);
     defer _ = FT_Done_Face(face);
 
     var database = try Database.init("C:/Users/kenny/Desktop/neuro.db");
