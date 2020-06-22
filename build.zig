@@ -1,4 +1,5 @@
 const Builder = @import("std").build.Builder;
+const Mode = @import("builtin").Mode;
 
 pub fn build(b: *Builder) void {
     // Standard target options allows the person running `zig build` to choose
@@ -13,7 +14,14 @@ pub fn build(b: *Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("neuro-zig", "src/main.zig");
+    const exec_name = switch (mode) {
+        .Debug => "neuro-zig-debug",
+        .ReleaseSafe => "neuro-zig-release-safe",
+        .ReleaseSmall => "neuro-zig-release-small",
+        .ReleaseFast => "neuro-zig-release-fast",
+    };
+
+    const exe = b.addExecutable(exec_name, "src/main.zig");
     exe.addLibPath("C:/mingw64/bin");
     exe.addLibPath("deps/freetype/lib");
     exe.linkSystemLibrary("c");
