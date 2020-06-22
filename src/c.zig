@@ -6,3 +6,7 @@ pub usingnamespace @cImport({
     @cInclude("glfw3.h");
     @cInclude("freetype.h");
 });
+
+pub const math = @cImport({
+    @cInclude("math.h");
+});
