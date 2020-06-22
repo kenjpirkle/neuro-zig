@@ -1,6 +1,6 @@
 const std = @import("std");
+const warn = std.debug.warn;
 const ArrayList = std.ArrayList;
-usingnamespace @import("print.zig");
 usingnamespace @import("c.zig");
 
 pub const Database = struct {
@@ -146,10 +146,7 @@ pub const Database = struct {
                 return;
             },
             else => {
-                print("sqlite error: ");
-                print(result);
-                print(": ");
-                printLine(error_message);
+                warn("sqlite error: {}: {}\n", .{ result, error_message });
                 return error.SQLiteError;
             },
         }

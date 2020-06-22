@@ -1,9 +1,9 @@
 const std = @import("std");
+const warn = std.debug.warn;
 const allocator = @import("std").heap.c_allocator;
 const SegmentedList = @import("std").SegmentedList;
 const QuadShader = @import("shaders/quad_shader.zig").QuadShader;
 const Widget = @import("widgets/widget.zig").Widget;
-usingnamespace @import("print.zig");
 usingnamespace @import("c.zig");
 
 const UserInterfaceState = packed struct {
@@ -21,7 +21,7 @@ var quad_shader: QuadShader = undefined;
 
 pub fn init() !void {
     if (glfwInit() == 0) {
-        printLine("could not initialize glfw");
+        warn("could not initialize glfw\n", .{});
         return error.GLFWInitFailed;
     }
 
@@ -39,16 +39,16 @@ pub fn init() !void {
     setGlfwState();
 
     if (gladLoadGLLoader(@ptrCast(GLADloadproc, glfwGetProcAddress)) == 0) {
-        printLine("could not initialize glad");
+        warn("could not initialize glad\n", .{});
         return error.GladLoadProcsFailed;
     }
 
     const version: [*:0]const u8 = glGetString(GL_VERSION);
-    print("OpenGL version: ");
-    printLine(version);
+
+    warn("OpenGL version: {}\n", .{version});
 
     if (glfwExtensionSupported("GL_ARB_bindless_texture") == GLFW_TRUE) {
-        printLine("GL_ARB_bindless_texture is supported!");
+        warn("GL_ARB_bindless_texture is supported!\n", .{});
     }
 
     quad_shader = try QuadShader.init(width, height);
@@ -59,6 +59,7 @@ pub fn deinit() void {
     glfwDestroyWindow(window);
     glfwTerminate();
     widgets.deinit();
+    quad_shader.deinit();
 }
 
 pub fn display() void {
