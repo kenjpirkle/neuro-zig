@@ -1,6 +1,6 @@
 const std = @import("std");
+const warn = std.debug.warn;
 const allocator = std.heap.c_allocator;
-usingnamespace @import("../print.zig");
 usingnamespace @import("../c.zig");
 
 const IdList = std.ArrayList(GLuint);
@@ -39,10 +39,13 @@ pub const Shader = struct {
         const data = try std.fs.cwd().readFileAlloc(allocator, shader_source.source, 1024 * 1024 * 1024);
 
         const shader_id = glCreateShader(shader_source.shader_type);
-        glShaderSource(shader_id, 1, @ptrCast([*c]const [*c]const u8, &data), null);
+        const c_data = @ptrCast([*c]const [*c]const u8, &data);
+        const c_size = @ptrCast([*c]const c_int, &data.len);
+
+        glShaderSource(shader_id, 1, c_data, c_size);
         glCompileShader(shader_id);
 
-        try printShaderLog(shader_id);
+        try printShaderLog(shader_source.source, shader_id);
         return shader_id;
     }
 
@@ -50,15 +53,14 @@ pub const Shader = struct {
         var found_error = false;
         var gl_error = glGetError();
         while (gl_error != GL_NO_ERROR) : (gl_error = glGetError()) {
-            print("glError: ");
-            printLine(gl_error);
+            warn("glError: {}\n", .{gl_error});
             found_error = true;
         }
 
         return found_error;
     }
 
-    fn printShaderLog(shader: GLuint) !void {
+    fn printShaderLog(path: []const u8, shader: GLuint) !void {
         var len: c_int = undefined;
         var chars_written: c_int = undefined;
 
@@ -67,8 +69,8 @@ pub const Shader = struct {
             var log = try allocator.alloc(u8, @intCast(usize, len));
             defer allocator.free(log);
             glGetShaderInfoLog(shader, len, &chars_written, log.ptr);
-            print("shader info log: ");
-            printLine(log);
+            warn("shader compilation failed: {}\nshader info log: {}", .{ path, log });
+            return error.ShaderCompilationFailed;
         }
     }
 
@@ -81,8 +83,7 @@ pub const Shader = struct {
             var log = try allocator.alloc(u8, @intCast(usize, len));
             defer allocator.free(log);
             glGetProgramInfoLog(program, len, &chars_written, log.ptr);
-            print("program info log: ");
-            printLine(log);
+            warn("program info log: {}\n", .{log});
         }
     }
 
