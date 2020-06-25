@@ -87,7 +87,7 @@ pub const Shader = struct {
         }
     }
 
-    pub fn getUniformLocation(self: Shader, name: [*]const u8) !c_int {
+    pub fn getUniformLocation(self: *Shader, name: [*]const u8) !c_int {
         const id = glGetUniformLocation(self.program, name);
         if (id == -1)
             return error.GlUniformNotFound;
