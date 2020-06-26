@@ -1,11 +1,12 @@
 const warn = @import("std").debug.warn;
+const UserInterface = @import("../user_interface.zig").UserInterface;
 const Widget = @import("widget.zig").Widget;
 const BufferIndices = @import("../gl/buffer_indices.zig").BufferIndices;
 
 pub const Rectangle = struct {
-    parent: ?*Widget,
+    parent: ?*Widget = null,
 
-    pub fn insertIntoUi(self: *Rectangle) void {}
+    pub fn insertIntoUi(self: *Rectangle, ui: *UserInterface()) !void {}
 
     pub fn onCursorEnter(self: *Rectangle) void {}
 
