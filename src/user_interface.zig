@@ -3,17 +3,31 @@ const warn = std.debug.warn;
 const allocator = @import("std").heap.c_allocator;
 const SegmentedList = @import("std").SegmentedList;
 const QuadShader = @import("shaders/quad_shader.zig").QuadShader;
+const DrawArraysIndirectCommand = @import("gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 const Widget = @import("widgets/widget.zig").Widget;
 const SearchBar = @import("widgets/search_bar.zig").SearchBar;
 const Rectangle = @import("widgets/rectangle.zig").Rectangle;
 const BufferIndices = @import("gl/buffer_indices.zig").BufferIndices;
 usingnamespace @import("c.zig");
 
-pub fn UserInterface(comptime widgets: var) type {
+pub fn checkOpenGLError() bool {
+    var found_error = false;
+    var gl_error = glGetError();
+    while (gl_error != GL_NO_ERROR) : (gl_error = glGetError()) {
+        warn("glError: {}\n", .{gl_error});
+        found_error = true;
+    }
+
+    return found_error;
+}
+
+pub fn UserInterface() type {
     return struct {
         const Self = @This();
 
         window: *GLFWwindow = undefined,
+        width: u16 = undefined,
+        height: u16 = undefined,
         video_mode: *const GLFWvidmode = undefined,
         cursor: *GLFWcursor = undefined,
         quad_shader: QuadShader(.{}) = undefined,
@@ -33,25 +47,26 @@ pub fn UserInterface(comptime widgets: var) type {
             setWindowHints();
 
             self.video_mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-            const width = @divTrunc(self.video_mode.*.width, 2);
-            const height = @divTrunc(self.video_mode.*.height, 2);
-            self.window = glfwCreateWindow(width, height, "neuro-zig", null, null) orelse return error.GlfwCreateWindowFailed;
+            self.width = @intCast(u16, @divTrunc(self.video_mode.*.width, 2));
+            self.height = @intCast(u16, @divTrunc(self.video_mode.*.height, 2));
+            self.window = glfwCreateWindow(self.width, self.height, "neuro-zig", null, null) orelse return error.GlfwCreateWindowFailed;
             self.cursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR) orelse return error.GlfwCreateCursorFailed;
             self.widgets = SegmentedList(Widget, 32).init(allocator);
             self.widget_with_cursor = null;
             self.widget_with_focus = null;
-            try self.widgets.push(.{
-                .SearchBar = .{
-                    .parent = null,
-                },
-            });
 
             glfwMakeContextCurrent(self.window);
-
             try self.setGlfwState();
 
-            try self.quad_shader.init(width, height);
-            setGlState(width, height);
+            glEnable(GL_DEBUG_OUTPUT);
+            glDebugMessageCallback(debugMessageCallback, null);
+
+            try self.quad_shader.init(self.width, self.height);
+            setGlState(self.width, self.height);
+
+            var sb: Widget = .{ .SearchBar = .{} };
+            try self.widgets.push(sb);
+            try sb.insertIntoUi(self);
         }
 
         pub fn deinit(self: *Self) void {
@@ -62,9 +77,11 @@ pub fn UserInterface(comptime widgets: var) type {
         }
 
         pub fn display(self: *Self) void {
-            glClear(GL_COLOR_BUFFER_BIT);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            const count = @intCast(c_int, self.quad_shader.draw_command_data.data.len);
+            // FIXED GL_INVALID_OPERATION error generated. Bound draw indirect buffer is not large enough. BECAUSE THE SECOND ARGUMENT IN glMultiDrawArraysIndirect SHOULD BE 0 (null) AND NOT!!! THE ADDRESS OF THE MAPPED BUFFER
+            glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, null, count, 0);
             glfwSwapBuffers(self.window);
-            glfwPollEvents();
         }
 
         inline fn setWindowHints() void {
@@ -108,8 +125,14 @@ pub fn UserInterface(comptime widgets: var) type {
             }
         }
 
+        fn debugMessageCallback(source: GLenum, error_type: GLenum, id: GLuint, severity: GLenum, length: GLsizei, message: [*c]const u8, user_param: ?*const GLvoid) callconv(.C) void {
+            warn("ERROR: {s}\n", .{message});
+        }
+
         fn onWindowSizeChanged(win: ?*GLFWwindow, width: c_int, height: c_int) callconv(.C) void {
             const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+            ui.width = @intCast(u16, width);
+            ui.height = @intCast(u16, height);
             glViewport(0, 0, width, height);
 
             // change this to tree navigation through the scene graph
