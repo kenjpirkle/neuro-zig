@@ -107,6 +107,8 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
             var texture: GLuint = undefined;
             glGenTextures(1, &texture);
 
+            warn("texture id: {}\n", .{texture});
+
             const t2d = GL_TEXTURE_2D;
             const size = @intCast(c_int, self.bitmap_size);
 
@@ -119,6 +121,8 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
             glTexParameteri(t2d, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
             const handle: GLuint64 = glGetTextureHandleARB(texture);
+            warn("texture handle id: {}\n", .{handle});
+
             glMakeTextureHandleResidentARB(handle);
             return handle;
         }
