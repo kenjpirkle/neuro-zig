@@ -1,3 +1,4 @@
+const UserInterface = @import("../user_interface.zig").UserInterface;
 const Rectangle = @import("rectangle.zig").Rectangle;
 const SearchBar = @import("search_bar.zig").SearchBar;
 
@@ -9,6 +10,14 @@ const WidgetTag = packed enum {
 pub const Widget = union(WidgetTag) {
     Rectangle: Rectangle,
     SearchBar: SearchBar,
+
+    pub fn insertIntoUi(self: *Widget, ui: *UserInterface()) !void {
+        try switch (self.*) {
+            .Rectangle => |*r| r.insertIntoUi(ui),
+            .SearchBar => |*s| s.insertIntoUi(ui),
+            else => unreachable,
+        };
+    }
 
     pub fn onCursorEnter(self: *Widget) void {
         switch (self.*) {
