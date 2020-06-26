@@ -1,7 +1,9 @@
 const std = @import("std");
+const warn = std.debug.warn;
 const Shader = @import("shader.zig").Shader;
 const ShaderSource = @import("shader.zig").ShaderSource;
 const Quad = @import("../gl/quad.zig").Quad;
+const QuadTransform = @import("../gl/quad_transform.zig").QuadTransform;
 const QuadColourIndices = @import("../gl/quad_colour_indices.zig").QuadColourIndices;
 const Colour = @import("../gl/colour.zig").Colour;
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
@@ -9,19 +11,19 @@ const Font = @import("../font/font.zig").Font;
 const MapBuffer = @import("../map_buffer.zig").MapBuffer;
 usingnamespace @import("../c.zig");
 
-const BufferType = enum {
-    Quad,
-    ColourIndex,
-    Colour,
-    DrawCommand,
-    TextureHandle,
+const BufferType = struct {
+    pub const QuadBuffer: c_uint = 0;
+    pub const ColourIndexBuffer: c_uint = 1;
+    pub const ColourBuffer: c_uint = 2;
+    pub const DrawCommandBuffer: c_uint = 3;
+    pub const TextureHandleBuffer: c_uint = 4;
 };
 
-const ShaderLocation = enum {
-    Transform,
-    Layer,
-    Character,
-    ColourIndex,
+const ShaderLocation = struct {
+    pub const Transform: c_uint = 0;
+    pub const Layer: c_uint = 1;
+    pub const Character: c_uint = 2;
+    pub const ColourIndex: c_uint = 3;
 };
 
 pub fn QuadShader(comptime buffer_sizes: var) type {
@@ -30,16 +32,16 @@ pub fn QuadShader(comptime buffer_sizes: var) type {
 
         shader: Shader = undefined,
         vertex_array_object: GLuint = undefined,
-        vertex_buffer_objects: [5]GLuint = undefined,
+        vertex_buffer_objects: [4]GLuint = undefined,
         window_height_location: GLint = undefined,
         resolution_multi_location: GLint = undefined,
         texture_transforms_location: GLint = undefined,
         font: Font(128, 16) = undefined,
-        quad_data: MapBuffer(Quad, 4096) = undefined,
-        colour_index_data: MapBuffer(QuadColourIndices, 4096) = undefined,
-        colour_data: MapBuffer(Colour, 128) = undefined,
+        quad_data: MapBuffer(Quad, 1024) = undefined,
         draw_command_data: MapBuffer(DrawArraysIndirectCommand, 64) = undefined,
-        texture_handle_data: MapBuffer(GLuint64, 128) = undefined,
+        colour_index_data: MapBuffer(QuadColourIndices, 1024) = undefined,
+        colour_data: MapBuffer(Colour, 128) = undefined,
+        //texture_handle_data: MapBuffer(GLuint64, 128) = undefined,
 
         pub fn init(self: *Self, window_width: c_int, window_height: c_int) !void {
             self.shader = try Shader.init([_]ShaderSource{
@@ -55,34 +57,52 @@ pub fn QuadShader(comptime buffer_sizes: var) type {
 
             glUseProgram(self.shader.program);
             glCreateVertexArrays(1, &self.vertex_array_object);
-            glCreateBuffers(5, &self.vertex_buffer_objects);
+            glBindVertexArray(self.vertex_array_object);
+            glGenBuffers(4, &self.vertex_buffer_objects[0]);
 
             try self.setUniforms(window_width, window_height);
 
-            self.quad_data.init(self.vertex_buffer_objects[@enumToInt(BufferType.Quad)], GL_ARRAY_BUFFER);
-            setAttribute(Quad, ShaderLocation.Transform, 4, GL_UNSIGNED_SHORT, false, "transform", 1);
-            setAttribute(Quad, ShaderLocation.Layer, 1, GL_UNSIGNED_BYTE, true, "layer", 1);
-            setIntAttribute(Quad, ShaderLocation.Character, 1, GL_UNSIGNED_BYTE, "character", 1);
+            self.quad_data.init(self.vertex_buffer_objects[BufferType.QuadBuffer], GL_ARRAY_BUFFER);
 
-            self.colour_index_data.init(self.vertex_buffer_objects[@enumToInt(BufferType.ColourIndex)], GL_ARRAY_BUFFER);
-            setIntAttribute(QuadColourIndices, ShaderLocation.ColourIndex, 4, GL_UNSIGNED_BYTE, "top_left", 1);
+            // Transform
+            glVertexAttribPointer(ShaderLocation.Transform, 4, GL_UNSIGNED_SHORT, GL_FALSE, @sizeOf(Quad), @intToPtr(?*GLvoid, @byteOffsetOf(Quad, "transform")));
+            glVertexAttribDivisor(0, 1);
+            glEnableVertexAttribArray(0);
 
-            self.colour_data.init(self.vertex_buffer_objects[@enumToInt(BufferType.Colour)], GL_SHADER_STORAGE_BUFFER);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, self.vertex_buffer_objects[@enumToInt(BufferType.Colour)]);
+            // Layer
+            glVertexAttribPointer(ShaderLocation.Layer, 1, GL_UNSIGNED_BYTE, GL_TRUE, @sizeOf(Quad), @intToPtr(?*GLvoid, @byteOffsetOf(Quad, "layer")));
+            glVertexAttribDivisor(1, 1);
+            glEnableVertexAttribArray(1);
 
-            self.draw_command_data.init(self.vertex_buffer_objects[@enumToInt(BufferType.DrawCommand)], GL_DRAW_INDIRECT_BUFFER);
+            // Character
+            glVertexAttribIPointer(ShaderLocation.Character, 1, GL_UNSIGNED_BYTE, @sizeOf(Quad), @intToPtr(?*GLvoid, @byteOffsetOf(Quad, "character")));
+            glVertexAttribDivisor(ShaderLocation.Character, 1);
+            glEnableVertexAttribArray(ShaderLocation.Character);
 
-            self.texture_handle_data.init(self.vertex_buffer_objects[@enumToInt(BufferType.TextureHandle)], GL_UNIFORM_BUFFER);
-            glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.vertex_buffer_objects[@enumToInt(BufferType.TextureHandle)]);
+            // Colour Indices
+            self.colour_index_data.init(self.vertex_buffer_objects[BufferType.ColourIndexBuffer], GL_ARRAY_BUFFER);
+            glVertexAttribIPointer(ShaderLocation.ColourIndex, 4, GL_UNSIGNED_BYTE, 0, null);
+            glVertexAttribDivisor(ShaderLocation.ColourIndex, 1);
+            glEnableVertexAttribArray(ShaderLocation.ColourIndex);
+
+            self.colour_data.init(self.vertex_buffer_objects[BufferType.ColourBuffer], GL_SHADER_STORAGE_BUFFER);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, self.vertex_buffer_objects[BufferType.ColourBuffer]);
+
+            self.draw_command_data.init(self.vertex_buffer_objects[BufferType.DrawCommandBuffer], GL_DRAW_INDIRECT_BUFFER);
+
+            // self.texture_handle_data.init(self.vertex_buffer_objects[@enumToInt(BufferType.TextureHandle)], GL_UNIFORM_BUFFER);
+            // glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.vertex_buffer_objects[@enumToInt(BufferType.TextureHandle)]);
 
             try self.font.init(std.heap.c_allocator, "fonts/Lato/Lato-Regular.ttf");
 
-            self.texture_handle_data.beginModify();
+            // self.texture_handle_data.beginModify();
 
-            var texture_handle = self.font.createTexture();
-            self.texture_handle_data.append(@ptrCast([*]GLuint64, &texture_handle)[0..1]);
+            // var texture_handle = self.font.createTexture();
+            // self.texture_handle_data.append(@ptrCast([*]GLuint64, &texture_handle)[0..1]);
 
-            self.texture_handle_data.endModify();
+            // warn("buffered texture handle: {}\n", .{self.texture_handle_data.data[0]});
+
+            // self.texture_handle_data.endModify();
         }
 
         pub fn deinit(self: *Self) void {
