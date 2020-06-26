@@ -49,17 +49,6 @@ pub const Shader = struct {
         return shader_id;
     }
 
-    pub fn checkOpenGLError() bool {
-        var found_error = false;
-        var gl_error = glGetError();
-        while (gl_error != GL_NO_ERROR) : (gl_error = glGetError()) {
-            warn("glError: {}\n", .{gl_error});
-            found_error = true;
-        }
-
-        return found_error;
-    }
-
     fn printShaderLog(path: []const u8, shader: GLuint) !void {
         var len: c_int = undefined;
         var chars_written: c_int = undefined;
