@@ -32,7 +32,7 @@ pub fn QuadShader(comptime buffer_sizes: var) type {
 
         shader: Shader = undefined,
         vertex_array_object: GLuint = undefined,
-        vertex_buffer_objects: [4]GLuint = undefined,
+        vertex_buffer_objects: [5]GLuint = undefined,
         window_height_location: GLint = undefined,
         resolution_multi_location: GLint = undefined,
         texture_transforms_location: GLint = undefined,
@@ -41,7 +41,7 @@ pub fn QuadShader(comptime buffer_sizes: var) type {
         draw_command_data: MapBuffer(DrawArraysIndirectCommand, 64) = undefined,
         colour_index_data: MapBuffer(QuadColourIndices, 1024) = undefined,
         colour_data: MapBuffer(Colour, 128) = undefined,
-        //texture_handle_data: MapBuffer(GLuint64, 128) = undefined,
+        texture_handle_data: MapBuffer(GLuint64, 2) = undefined,
 
         pub fn init(self: *Self, window_width: c_int, window_height: c_int) !void {
             self.shader = try Shader.init([_]ShaderSource{
@@ -58,21 +58,19 @@ pub fn QuadShader(comptime buffer_sizes: var) type {
             glUseProgram(self.shader.program);
             glCreateVertexArrays(1, &self.vertex_array_object);
             glBindVertexArray(self.vertex_array_object);
-            glGenBuffers(4, &self.vertex_buffer_objects[0]);
-
-            try self.setUniforms(window_width, window_height);
+            glGenBuffers(5, &self.vertex_buffer_objects[0]);
 
             self.quad_data.init(self.vertex_buffer_objects[BufferType.QuadBuffer], GL_ARRAY_BUFFER);
 
             // Transform
             glVertexAttribPointer(ShaderLocation.Transform, 4, GL_UNSIGNED_SHORT, GL_FALSE, @sizeOf(Quad), @intToPtr(?*GLvoid, @byteOffsetOf(Quad, "transform")));
-            glVertexAttribDivisor(0, 1);
-            glEnableVertexAttribArray(0);
+            glVertexAttribDivisor(ShaderLocation.Transform, 1);
+            glEnableVertexAttribArray(ShaderLocation.Transform);
 
             // Layer
             glVertexAttribPointer(ShaderLocation.Layer, 1, GL_UNSIGNED_BYTE, GL_TRUE, @sizeOf(Quad), @intToPtr(?*GLvoid, @byteOffsetOf(Quad, "layer")));
-            glVertexAttribDivisor(1, 1);
-            glEnableVertexAttribArray(1);
+            glVertexAttribDivisor(ShaderLocation.Layer, 1);
+            glEnableVertexAttribArray(ShaderLocation.Layer);
 
             // Character
             glVertexAttribIPointer(ShaderLocation.Character, 1, GL_UNSIGNED_BYTE, @sizeOf(Quad), @intToPtr(?*GLvoid, @byteOffsetOf(Quad, "character")));
@@ -90,23 +88,28 @@ pub fn QuadShader(comptime buffer_sizes: var) type {
 
             self.draw_command_data.init(self.vertex_buffer_objects[BufferType.DrawCommandBuffer], GL_DRAW_INDIRECT_BUFFER);
 
-            // self.texture_handle_data.init(self.vertex_buffer_objects[@enumToInt(BufferType.TextureHandle)], GL_UNIFORM_BUFFER);
-            // glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.vertex_buffer_objects[@enumToInt(BufferType.TextureHandle)]);
+            self.texture_handle_data.init(self.vertex_buffer_objects[BufferType.TextureHandleBuffer], GL_UNIFORM_BUFFER);
+            glBindBufferBase(GL_UNIFORM_BUFFER, 0, self.vertex_buffer_objects[BufferType.TextureHandleBuffer]);
 
-            try self.font.init(std.heap.c_allocator, "fonts/Lato/Lato-Regular.ttf");
+            try self.font.init(std.heap.c_allocator, "fonts/Karla/Karla-Regular.ttf");
 
-            // self.texture_handle_data.beginModify();
-
-            // var texture_handle = self.font.createTexture();
-            // self.texture_handle_data.append(@ptrCast([*]GLuint64, &texture_handle)[0..1]);
-
-            // warn("buffered texture handle: {}\n", .{self.texture_handle_data.data[0]});
-
-            // self.texture_handle_data.endModify();
+            self.texture_handle_data.beginModify();
+            const h = self.font.createTexture();
+            var texture_handle = [_]GLuint64{h};
+            self.texture_handle_data.append(&texture_handle);
+            try self.setUniforms(window_width, window_height);
+            self.texture_handle_data.endModify();
         }
 
         pub fn deinit(self: *Self) void {
             self.font.deinit();
+        }
+
+        pub fn updateWindowSize(self: *Self, window_width: u16, window_height: u16) void {
+            const h = @intToFloat(f32, window_height);
+            const w = @intToFloat(f32, window_width);
+            glProgramUniform1f(self.shader.program, self.window_height_location, h);
+            glProgramUniform2f(self.shader.program, self.resolution_multi_location, (1.0 / w) * 2.0, (1.0 / h) * 2.0);
         }
 
         pub fn setUniforms(self: *Self, window_width: c_int, window_height: c_int) !void {
@@ -118,6 +121,8 @@ pub fn QuadShader(comptime buffer_sizes: var) type {
             const w = @intToFloat(f32, window_width);
             glProgramUniform1f(p, self.window_height_location, h);
             glProgramUniform2f(p, self.resolution_multi_location, (1.0 / w) * 2.0, (1.0 / h) * 2.0);
+            const t_ptr = @ptrCast([*]f32, @alignCast(@alignOf([*]f32), &self.font.texture_transforms[0]));
+            glProgramUniform4fv(p, self.texture_transforms_location, self.font.glyphs.len, t_ptr);
         }
 
         inline fn setAttribute(comptime T: type, comptime shader_location: ShaderLocation, comptime count: GLint, comptime gl_type: GLenum, comptime normalized: bool, comptime field_name: []const u8, comptime divisor: usize) void {
