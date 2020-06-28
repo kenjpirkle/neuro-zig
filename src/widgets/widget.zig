@@ -19,18 +19,18 @@ pub const Widget = union(WidgetTag) {
         };
     }
 
-    pub fn onCursorEnter(self: *Widget) void {
+    pub fn onCursorEnter(self: *Widget, ui: *UserInterface()) void {
         switch (self.*) {
             .Rectangle => |*r| r.onCursorEnter(),
-            .SearchBar => |*s| s.onCursorEnter(),
+            .SearchBar => |*s| s.onCursorEnter(ui),
             else => unreachable,
         }
     }
 
-    pub fn onCursorLeave(self: *Widget) void {
+    pub fn onCursorLeave(self: *Widget, ui: *UserInterface()) void {
         switch (self.*) {
             .Rectangle => |*r| r.onCursorLeave(),
-            .SearchBar => |*s| s.onCursorLeave(),
+            .SearchBar => |*s| s.onCursorLeave(ui),
             else => unreachable,
         }
     }
@@ -59,18 +59,18 @@ pub const Widget = union(WidgetTag) {
         }
     }
 
-    pub inline fn onWindowSizeChanged(self: *Widget, width: c_int, height: c_int) void {
+    pub inline fn onWindowSizeChanged(self: *Widget, ui: *UserInterface()) void {
         switch (self.*) {
-            .Rectangle => |*r| r.onWindowSizeChanged(width, height),
-            .SearchBar => |*s| s.onWindowSizeChanged(width, height),
+            .Rectangle => |*r| r.onWindowSizeChanged(ui),
+            .SearchBar => |*s| s.onWindowSizeChanged(ui),
             else => unreachable,
         }
     }
 
-    pub inline fn containsPoint(self: *Widget, x: u16, y: u16) bool {
+    pub inline fn containsPoint(self: *Widget, ui: *UserInterface(), x: u16, y: u16) bool {
         switch (self.*) {
             .Rectangle => |*r| return r.containsPoint(x, y),
-            .SearchBar => |*s| return s.containsPoint(x, y),
+            .SearchBar => |*s| return s.containsPoint(ui, x, y),
             else => unreachable,
         }
     }
