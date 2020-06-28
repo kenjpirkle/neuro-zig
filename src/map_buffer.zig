@@ -13,7 +13,7 @@ pub fn MapBuffer(comptime T: type, comptime size: usize) type {
             glBindBuffer(target, id);
             glNamedBufferStorage(id, @sizeOf(T) * size, null, create_flags);
             const ptr = glMapBufferRange(target, 0, @sizeOf(T) * size, map_flags);
-            self.data.ptr = @ptrCast([*]T, ptr);
+            self.data.ptr = @ptrCast([*]T, @alignCast(@alignOf([*]T), ptr));
             self.data.len = 0;
             self.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         }
