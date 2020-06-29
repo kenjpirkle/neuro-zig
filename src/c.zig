@@ -6,7 +6,3 @@ pub usingnamespace @cImport({
     @cInclude("freetype.h");
     @cInclude("sqlite3.h");
 });
-
-pub const math = @cImport({
-    @cInclude("math.h");
-});

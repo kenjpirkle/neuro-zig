@@ -3,6 +3,7 @@ const builtin = @import("std").builtin;
 const Allocator = @import("std").mem.Allocator;
 const Glyph = @import("glyph.zig").Glyph;
 const Vector4 = @import("../gl/vector.zig").Vector4;
+const math = @import("std").math;
 usingnamespace @import("../c.zig");
 
 pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
@@ -39,7 +40,7 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
             // TODO: find out if this call is necessary when using multiple textures
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-            const ceil_dim = @floatToInt(u32, math.ceil(math.sqrt(128)));
+            const ceil_dim = @floatToInt(u32, @ceil(math.sqrt(128.0)));
             const pixel_height = face.*.size.*.metrics.height >> 6;
             const max_dim = @intCast(u32, (1 + pixel_height)) * ceil_dim;
             self.max_glyph_height = @intCast(u32, pixel_height);
