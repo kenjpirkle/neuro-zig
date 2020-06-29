@@ -1,13 +1,15 @@
 const std = @import("std");
+const builtin = std.builtin;
 const warn = std.debug.warn;
-const allocator = @import("std").heap.c_allocator;
-const SegmentedList = @import("std").SegmentedList;
+const allocator = std.heap.c_allocator;
+const SegmentedList = std.SegmentedList;
+const Timer = std.time.Timer;
 const QuadShader = @import("shaders/quad_shader.zig").QuadShader;
 const DrawArraysIndirectCommand = @import("gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 const Widget = @import("widgets/widget.zig").Widget;
+const WidgetTag = @import("widgets/widget.zig").WidgetTag;
 const SearchBar = @import("widgets/search_bar.zig").SearchBar;
 const Rectangle = @import("widgets/rectangle.zig").Rectangle;
-const BufferIndices = @import("gl/buffer_indices.zig").BufferIndices;
 usingnamespace @import("c.zig");
 
 pub fn checkOpenGLError() bool {
@@ -29,16 +31,31 @@ pub fn UserInterface() type {
         width: u16 = undefined,
         height: u16 = undefined,
         video_mode: *const GLFWvidmode = undefined,
-        cursor: *GLFWcursor = undefined,
+        cursor: ?*GLFWcursor = undefined,
         quad_shader: QuadShader(.{}) = undefined,
-        widgets: SegmentedList(Widget, 32) = undefined,
         widget_with_cursor: ?*Widget = undefined,
         widget_with_focus: ?*Widget = undefined,
+        widgets: [2]Widget,
+        animating_widgets: SegmentedList(?*Widget, 4) = undefined,
+        timer: Timer = undefined,
+        before_frame: u64 = 0,
+        time_delta: u64 = 0,
         draw_required: bool,
         animating: bool,
         animating_locked: bool,
 
         pub fn init(self: *Self) !void {
+            self.widgets = .{
+                .{
+                    .Rectangle = .{},
+                },
+                .{
+                    .SearchBar = .{},
+                },
+            };
+            self.animating_widgets = SegmentedList(?*Widget, 4).init(allocator);
+            self.timer = try Timer.start();
+
             if (glfwInit() == 0) {
                 warn("could not initialize glfw\n", .{});
                 return error.GLFWInitFailed;
@@ -51,29 +68,60 @@ pub fn UserInterface() type {
             self.height = @intCast(u16, @divTrunc(self.video_mode.*.height, 2));
             self.window = glfwCreateWindow(self.width, self.height, "neuro-zig", null, null) orelse return error.GlfwCreateWindowFailed;
             self.cursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR) orelse return error.GlfwCreateCursorFailed;
-            self.widgets = SegmentedList(Widget, 32).init(allocator);
             self.widget_with_cursor = null;
             self.widget_with_focus = null;
 
             glfwMakeContextCurrent(self.window);
             try self.setGlfwState();
 
-            glEnable(GL_DEBUG_OUTPUT);
-            glDebugMessageCallback(debugMessageCallback, null);
+            if (builtin.mode == .Debug) {
+                glEnable(GL_DEBUG_OUTPUT);
+                glDebugMessageCallback(debugMessageCallback, null);
+            }
 
             try self.quad_shader.init(self.width, self.height);
             setGlState(self.width, self.height);
 
-            var sb: Widget = .{ .SearchBar = .{} };
-            try self.widgets.push(sb);
-            try sb.insertIntoUi(self);
+            for (self.widgets) |*w| {
+                try w.insertIntoUi(self);
+            }
         }
 
         pub fn deinit(self: *Self) void {
+            glfwDestroyCursor(self.cursor);
             glfwDestroyWindow(self.window);
             glfwTerminate();
-            self.widgets.deinit();
+            self.animating_widgets.deinit();
             self.quad_shader.deinit();
+        }
+
+        pub fn start(self: *Self) void {
+            self.draw_required = true;
+
+            while (glfwWindowShouldClose(self.window) == 0) {
+                if (self.animating) {
+                    self.before_frame = self.timer.read();
+
+                    self.draw_required = false;
+                    self.animating = false;
+                    self.animating_locked = false;
+
+                    self.animateWidgets(self.time_delta);
+
+                    glfwPollEvents();
+                    self.display();
+
+                    self.time_delta = self.timer.lap() - self.before_frame;
+                } else {
+                    glfwWaitEvents();
+                    if (self.draw_required) {
+                        self.display();
+                        self.draw_required = false;
+                        self.animating = false;
+                        self.animating_locked = false;
+                    }
+                }
+            }
         }
 
         pub fn display(self: *Self) void {
@@ -91,8 +139,10 @@ pub fn UserInterface() type {
         }
 
         inline fn setGlState(window_width: c_int, window_height: c_int) void {
-            const version: [*:0]const u8 = glGetString(GL_VERSION);
-            warn("OpenGL version: {}\n", .{version});
+            if (builtin.mode == .Debug) {
+                const version: [*:0]const u8 = glGetString(GL_VERSION);
+                warn("OpenGL version: {}\n", .{version});
+            }
 
             glViewport(0, 0, window_width, window_height);
             glEnable(GL_CULL_FACE);
@@ -120,8 +170,10 @@ pub fn UserInterface() type {
                 return error.GladLoadProcsFailed;
             }
 
-            if (glfwExtensionSupported("GL_ARB_bindless_texture") == GLFW_TRUE) {
-                warn("GL_ARB_bindless_texture is supported!\n", .{});
+            if (builtin.mode == .Debug) {
+                if (glfwExtensionSupported("GL_ARB_bindless_texture") == GLFW_TRUE) {
+                    warn("GL_ARB_bindless_texture is supported!\n", .{});
+                }
             }
         }
 
@@ -133,14 +185,14 @@ pub fn UserInterface() type {
             const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
             ui.width = @intCast(u16, width);
             ui.height = @intCast(u16, height);
+            ui.quad_shader.updateWindowSize(ui.width, ui.height);
             glViewport(0, 0, width, height);
 
             // change this to tree navigation through the scene graph
-            var i: usize = 0;
-            while (i < ui.widgets.len) : (i += 1) {
-                var w = ui.widgets.uncheckedAt(i);
-                w.onWindowSizeChanged(width, height);
+            for (ui.widgets) |*w| {
+                w.onWindowSizeChanged(ui);
             }
+            ui.display();
         }
 
         fn onCursorPositionChanged(win: ?*GLFWwindow, x_pos: f64, y_pos: f64) callconv(.C) void {
@@ -149,28 +201,26 @@ pub fn UserInterface() type {
             const y = @floatToInt(u16, y_pos);
 
             if (ui.widget_with_cursor) |w| {
-                if (w.containsPoint(x, y)) {
+                if (w.containsPoint(ui, x, y)) {
                     // animations here
                 } else {
-                    w.onCursorLeave();
+                    w.onCursorLeave(ui);
                     ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
                     if (ui.widget_with_cursor) |new_w| {
-                        new_w.onCursorEnter();
+                        new_w.onCursorEnter(ui);
                     }
                 }
             } else {
                 ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
                 if (ui.widget_with_cursor) |new_w| {
-                    new_w.onCursorEnter();
+                    new_w.onCursorEnter(ui);
                 }
             }
         }
 
         inline fn findWidgetWithCursor(self: *Self, x: u16, y: u16) ?*Widget {
-            var i: usize = 0;
-            while (i < self.widgets.len) : (i += 1) {
-                var w = self.widgets.uncheckedAt(i);
-                if (w.containsPoint(x, y)) {
+            for (self.widgets) |*w| {
+                if (w.containsPoint(self, x, y)) {
                     return w;
                 }
             }
@@ -208,18 +258,21 @@ pub fn UserInterface() type {
                 if (ui.widget_with_cursor) |wwc| {
                     if (ui.widget_with_focus) |wwf| {
                         if (wwc != wwf) {
-                            wwf.onUnfocus();
+                            wwf.onUnfocus(ui);
                         }
 
-                        wwc.onLeftMouseDown();
+                        wwc.onLeftMouseDown(ui);
                     } else {
+                        if (builtin.mode == .Debug) {
+                            warn("widget with cursor: {}\n", .{wwc.SearchBar});
+                        }
                         // this needs to be more generic
-                        wwc.onLeftMouseDown();
+                        wwc.onLeftMouseDown(ui);
                         // the widget type itself needs to handle this logic
                         ui.widget_with_focus = ui.widget_with_cursor;
                     }
                 } else if (ui.widget_with_focus) |wwf| {
-                    wwf.onUnfocus();
+                    wwf.onUnfocus(ui);
                     ui.widget_with_focus = null;
                 }
             }
@@ -230,6 +283,16 @@ pub fn UserInterface() type {
             var i: usize = 0;
             while (i < count) : (i += 1) {
                 warn("file: {s}\n", .{paths[i]});
+            }
+        }
+
+        inline fn animateWidgets(self: *Self, time_delta: u64) void {
+            var i: usize = 0;
+            while (i < self.animating_widgets.len) : (i += 1) {
+                var animating_widget = self.animating_widgets.uncheckedAt(i);
+                if (animating_widget.*) |w| {
+                    w.animate(self, time_delta);
+                }
             }
         }
     };
