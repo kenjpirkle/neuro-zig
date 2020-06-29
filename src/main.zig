@@ -9,9 +9,5 @@ pub fn main() anyerror!void {
     var ui: UserInterface() = undefined;
     try ui.init();
     defer ui.deinit();
-
-    while (glfwWindowShouldClose(ui.window) == 0) {
-        glfwPollEvents();
-        ui.display();
-    }
+    ui.start();
 }
