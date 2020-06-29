@@ -27,18 +27,17 @@ const uvec2 vertices[4] = {
 };
 
 void main() {
-    is_text = (in_character == 0) ? 0 : (in_character == 1) ? 2 : 1;
+    if (in_character == 0) {
+        is_text = 0;
+    } else {
+        is_text = 1;
+    }
 
     const float x = (instance_transform.x + (instance_transform.z * vertices[gl_VertexID].x)) * res_multi.x - 1.0;
     const float y = (window_height - instance_transform.y - (instance_transform.w * vertices[gl_VertexID].y)) * res_multi.y - 1.0;
     gl_Position = vec4(x, y, instance_depth, 1);
     colour = in_colours[colour_indices[gl_VertexID]];
     const vec4 c = texture_transforms[in_character];
-    if (in_character > 1) {
-        tex_coords.x = (c.x + (c.z * vertices[gl_VertexID].x));
-        tex_coords.y = (c.y + (c.w * vertices[gl_VertexID].y));
-    } else if (in_character == 1) {
-        tex_coords.x = vertices[gl_VertexID].x;
-        tex_coords.y = vertices[gl_VertexID].y;
-    }
+    tex_coords.x = (c.x + (c.z * vertices[gl_VertexID].x));
+    tex_coords.y = (c.y + (c.w * vertices[gl_VertexID].y));
 }
