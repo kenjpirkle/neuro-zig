@@ -2,7 +2,7 @@ const UserInterface = @import("../user_interface.zig").UserInterface;
 const Rectangle = @import("rectangle.zig").Rectangle;
 const SearchBar = @import("search_bar.zig").SearchBar;
 
-const WidgetTag = packed enum {
+pub const WidgetTag = enum {
     Rectangle,
     SearchBar,
 };
@@ -35,26 +35,26 @@ pub const Widget = union(WidgetTag) {
         }
     }
 
-    pub fn onFocus(self: *Widget) void {
+    pub fn onFocus(self: *Widget, ui: *UserInterface()) void {
         switch (self.*) {
             .Rectangle => |*r| r.onFocus(),
-            .SearchBar => |*s| s.onFocus(),
+            .SearchBar => |*s| s.onFocus(ui),
             else => unreachable,
         }
     }
 
-    pub fn onUnfocus(self: *Widget) void {
+    pub fn onUnfocus(self: *Widget, ui: *UserInterface()) void {
         switch (self.*) {
             .Rectangle => |*r| r.onUnfocus(),
-            .SearchBar => |*s| s.onUnfocus(),
+            .SearchBar => |*s| s.onUnfocus(self, ui),
             else => unreachable,
         }
     }
 
-    pub fn onLeftMouseDown(self: *Widget) void {
+    pub fn onLeftMouseDown(self: *Widget, ui: *UserInterface()) void {
         switch (self.*) {
             .Rectangle => |*r| r.onLeftMouseDown(),
-            .SearchBar => |*s| s.onLeftMouseDown(),
+            .SearchBar => |*s| s.onLeftMouseDown(self, ui),
             else => unreachable,
         }
     }
@@ -71,6 +71,14 @@ pub const Widget = union(WidgetTag) {
         switch (self.*) {
             .Rectangle => |*r| return r.containsPoint(x, y),
             .SearchBar => |*s| return s.containsPoint(ui, x, y),
+            else => unreachable,
+        }
+    }
+
+    pub inline fn animate(self: *Widget, ui: *UserInterface(), time_delta: u64) void {
+        switch (self.*) {
+            .Rectangle => unreachable,
+            .SearchBar => |*s| s.animate(self, ui, time_delta),
             else => unreachable,
         }
     }
