@@ -1,12 +1,15 @@
 const warn = @import("std").debug.warn;
+const builtin = @import("std").builtin;
 const Allocator = @import("std").mem.Allocator;
 const Glyph = @import("glyph.zig").Glyph;
+const Vector4 = @import("../gl/vector.zig").Vector4;
 usingnamespace @import("../c.zig");
 
 pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
     return struct {
         const Self = @This();
 
+        texture_transforms: [char_count]Vector4,
         glyphs: [char_count]Glyph,
         bitmap: []u8,
         bitmap_size: u32,
@@ -33,6 +36,9 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
 
             _ = FT_Set_Pixel_Sizes(face, 0, font_size);
 
+            // TODO: find out if this call is necessary when using multiple textures
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
             const ceil_dim = @floatToInt(u32, math.ceil(math.sqrt(128)));
             const pixel_height = face.*.size.*.metrics.height >> 6;
             const max_dim = @intCast(u32, (1 + pixel_height)) * ceil_dim;
@@ -48,6 +54,9 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
             self.bitmap_size = @intCast(u32, tex_height);
             const size: usize = @intCast(usize, tex_height * tex_width);
             self.bitmap = try allocator.alloc(u8, size);
+            for (self.bitmap) |*bit| {
+                bit.* = 0;
+            }
 
             var pen_x: c_long = 0;
             var pen_y: c_long = 0;
@@ -72,13 +81,13 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
                     var y: c_long = 0;
 
                     var i: c_long = 0;
-                    while (i < bmp.rows) : (i += 1) {
+                    while (i < bmp.*.rows) : (i += 1) {
                         var j: c_long = 0;
-                        while (j < bmp.width) : (j += 1) {
+                        while (j < bmp.*.width) : (j += 1) {
                             x = pen_x + j;
                             y = pen_y + i;
                             const pixel_index = @intCast(usize, (y * tex_width) + x);
-                            const buffer_index = @intCast(usize, (i * bmp.pitch) + j);
+                            const buffer_index = @intCast(usize, (i * bmp.*.pitch) + j);
                             self.bitmap[pixel_index] = bmp.buffer[buffer_index];
                         }
                     }
@@ -86,15 +95,22 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
                     const px = @intCast(u32, pen_x);
                     const py = @intCast(u32, pen_y);
 
+                    self.texture_transforms[c] = .{
+                        .x = @intToFloat(f32, pen_x) * uv_multi,
+                        .y = @intToFloat(f32, pen_y) * uv_multi,
+                        .z = @intToFloat(f32, bmp.*.width) * uv_multi,
+                        .w = @intToFloat(f32, bmp.*.rows) * uv_multi,
+                    };
+
                     self.glyphs[c].x0 = px;
                     self.glyphs[c].y0 = py;
-                    self.glyphs[c].x1 = px + @intCast(u32, bmp.width);
-                    self.glyphs[c].y1 = py + @intCast(u32, bmp.rows);
+                    self.glyphs[c].x1 = px + @intCast(u32, bmp.*.width);
+                    self.glyphs[c].y1 = py + @intCast(u32, bmp.*.rows);
                     self.glyphs[c].x_off = @intCast(i32, face.*.glyph.*.bitmap_left);
                     self.glyphs[c].y_off = @intCast(i32, face.*.glyph.*.bitmap_top);
                     self.glyphs[c].advance = @intCast(u32, face.*.glyph.*.advance.x >> 6);
 
-                    pen_x += @intCast(c_long, bmp.width + 1);
+                    pen_x += @intCast(c_long, bmp.*.width + 1);
                 }
             }
         }
@@ -107,7 +123,9 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
             var texture: GLuint = undefined;
             glGenTextures(1, &texture);
 
-            warn("texture id: {}\n", .{texture});
+            if (builtin.mode == .Debug) {
+                warn("texture id: {}\n", .{texture});
+            }
 
             const t2d = GL_TEXTURE_2D;
             const size = @intCast(c_int, self.bitmap_size);
@@ -121,7 +139,10 @@ pub fn Font(comptime char_count: u32, comptime font_size: u32) type {
             glTexParameteri(t2d, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
             const handle: GLuint64 = glGetTextureHandleARB(texture);
-            warn("texture handle id: {}\n", .{handle});
+
+            if (builtin.mode == .Debug) {
+                warn("texture handle id: {}\n", .{handle});
+            }
 
             glMakeTextureHandleResidentARB(handle);
             return handle;
