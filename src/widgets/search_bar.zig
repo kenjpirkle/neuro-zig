@@ -617,7 +617,7 @@ pub const SearchBar = packed struct {
             } else {
                 switch (keys.key) {
                     GLFW_KEY_BACKSPACE => self.onBackspace(ui),
-                    GLFW_KEY_DELETE => return,
+                    GLFW_KEY_DELETE => self.onDelete(ui),
                     GLFW_KEY_LEFT => self.onLeft(ui),
                     GLFW_KEY_RIGHT => self.onRight(ui),
                     GLFW_KEY_ENTER => return,
@@ -723,13 +723,55 @@ pub const SearchBar = packed struct {
         var q = &ui.quad_shader.quad_data;
 
         if (self.search_string_length > 0 and self.cursor_position > 0) {
-            const c_ind = Index.SearchText.UserText.QuadId + self.cursor_position - 1;
-            var cursor_advance = @intCast(u16, ui.quad_shader.font.glyphs[q.data[c_ind].character].advance);
+            const previous_character_quad_id = Index.SearchText.UserText.QuadId + self.cursor_position - 1;
+            const previous_character = q.data[previous_character_quad_id].character;
+            const character_advance = ui.quad_shader.font.glyphs[previous_character].advance;
             var num_to_delete: u8 = 1;
 
-            if (ui.keyboard_state.modifiers == GLFW_MOD_CONTROL) {
-                self.calculateBackwardJump(ui, c_ind - 1, &cursor_advance, &num_to_delete);
+            // if (ui.keyboard_state.modifiers == GLFW_MOD_CONTROL) {
+            //     self.calculateBackwardJump(ui, c_ind - 1, &cursor_advance, &num_to_delete);
+            // }
+
+            const to_copy = self.search_string_length - self.cursor_position;
+            const end_index = previous_character_quad_id + to_copy;
+            var i: usize = previous_character_quad_id;
+            while (i < end_index) : (i += 1) {
+                q.data[i] = q.data[i + 1];
+                q.data[i].transform.x -= @intCast(u16, character_advance);
             }
+
+            self.cursor_text_origin -= @intCast(u16, character_advance);
+            self.cursor_position -= 1;
+            self.search_string_length -= 1;
+
+            self.moveCursor(ui, @intCast(i32, -%character_advance));
+            self.updateText(ui, self.search_string_length);
+        }
+    }
+
+    inline fn onDelete(self: *Self, ui: *UserInterface) void {
+        var q = &ui.quad_shader.quad_data;
+
+        if (self.search_string_length > 0 and self.cursor_position < self.search_string_length) {
+            const next_character_quad_id = Index.SearchText.UserText.QuadId + self.cursor_position;
+            const next_character = q.data[next_character_quad_id].character;
+            const character_advance = ui.quad_shader.font.glyphs[next_character].advance;
+            var num_to_delete: u8 = 1;
+
+            // if (ui.keyboard_state.modifiers == GLFW_MOD_CONTROL) {
+            //     self.calculateBackwardJump(ui, c_ind - 1, &cursor_advance, &num_to_delete);
+            // }
+
+            const to_copy = self.search_string_length - self.cursor_position - 1;
+            const end_index = next_character_quad_id + to_copy;
+            var i: usize = next_character_quad_id;
+            while (i < end_index) : (i += 1) {
+                q.data[i] = q.data[i + 1];
+                q.data[i].transform.x -= @intCast(u16, character_advance);
+            }
+
+            self.search_string_length -= 1;
+            self.updateText(ui, self.search_string_length);
         }
     }
 
