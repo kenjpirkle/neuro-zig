@@ -110,6 +110,8 @@ use one shader for text and rects (anything that uses a quad) and implement pers
 
 colour data should be 4 byte packed unsigned bytes, colour indices unsigned bytes/shorts/ints
 
+pass delta time to shader to calculate colour change etc
+
 disable input but not animation when resizing window
 
 stuff the layer bits into spare 32 bit character bits
