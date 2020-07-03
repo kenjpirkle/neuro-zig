@@ -16,9 +16,11 @@ const Index = struct {
 };
 
 pub const Rectangle = struct {
+    const Self = @This();
+
     parent: ?*Widget = null,
 
-    pub fn insertIntoUi(self: *Rectangle, ui: *UserInterface()) !void {
+    pub fn insertIntoUi(self: *Self, ui: *UserInterface) !void {
         ui.quad_shader.quad_data.beginModify();
         ui.quad_shader.colour_data.beginModify();
         ui.quad_shader.colour_index_data.beginModify();
@@ -57,35 +59,39 @@ pub const Rectangle = struct {
         ui.quad_shader.colour_index_data.endModify();
     }
 
-    pub fn onCursorEnter(self: *Rectangle) void {}
+    pub fn onCursorEnter(self: *Self) void {}
 
-    pub fn onCursorLeave(self: *Rectangle) void {}
+    pub fn onCursorLeave(self: *Self) void {}
 
-    pub fn onLeftMouseDown(self: *Rectangle) void {
+    pub fn onLeftMouseDown(self: *Self) void {
         if (builtin.mode == .Debug) {
             warn("left mouse button down on Rectangle\n", .{});
         }
     }
 
-    pub fn onFocus(self: *Rectangle) void {
+    pub fn onFocus(self: *Self) void {
         if (builtin.mode == .Debug) {
             warn("Rectangle focus\n", .{});
         }
     }
 
-    pub fn onUnfocus(self: *Rectangle) void {
+    pub fn onUnfocus(self: *Self) void {
         if (builtin.mode == .Debug) {
             warn("Rectangle unfocus\n", .{});
         }
     }
 
-    pub fn onWindowSizeChanged(self: *Rectangle, ui: *UserInterface()) void {
+    pub fn onKeyEvent(self: *Self, widget: *Widget, ui: *UserInterface) void {}
+
+    pub fn onCharacterEvent(self: *Self, widget: *Widget, ui: *UserInterface, codepoint: u32) void {}
+
+    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
         const t = &ui.quad_shader.quad_data.data[Index.QuadId].transform;
         t.width = ui.width;
         t.height = ui.height;
     }
 
-    pub fn containsPoint(self: *Rectangle, x: u16, y: u16) bool {
+    pub fn containsPoint(self: *Self, x: u16, y: u16) bool {
         return false;
     }
 };
