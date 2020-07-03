@@ -1,5 +1,8 @@
-const warn = @import("std").debug.warn;
-const builtin = @import("std").builtin;
+const std = @import("std");
+const math = std.math;
+const warn = std.debug.warn;
+const builtin = std.builtin;
+const mem = std.mem;
 const UserInterface = @import("../user_interface.zig").UserInterface;
 const Widget = @import("widget.zig").Widget;
 const BufferIndices = @import("../gl/buffer_indices.zig").BufferIndices;
@@ -95,10 +98,11 @@ const Index = struct {
     };
 };
 
-pub const SearchBar = struct {
+pub const SearchBar = packed struct {
     const Self = @This();
 
     const placeholder_text = "search...";
+    const search_text_limit = 256;
     const text_offset_x: u16 = 30;
     const text_offset_y: u16 = 43;
 
@@ -106,12 +110,14 @@ pub const SearchBar = struct {
     elapsed_ns: u64 = 0,
     cursor_text_origin: u16 = text_offset_x,
     cursor_position: u8 = 0,
+    first_visible_char: u8 = 0,
+    last_visible_char: u8 = 0,
     search_string_length: u8 = 0,
     is_focused: bool = false,
     text_navigation_mode: bool = false,
     input_handled: bool = false,
 
-    pub fn insertIntoUi(self: *Self, ui: *UserInterface()) !void {
+    pub fn insertIntoUi(self: *Self, ui: *UserInterface) !void {
         ui.quad_shader.quad_data.beginModify();
         ui.quad_shader.colour_data.beginModify();
         ui.quad_shader.colour_index_data.beginModify();
@@ -425,7 +431,7 @@ pub const SearchBar = struct {
         ui.quad_shader.draw_command_data.endModify();
     }
 
-    fn insertPlaceholderText(self: *Self, ui: *UserInterface()) void {
+    fn insertPlaceholderText(self: *Self, ui: *UserInterface) void {
         var origin = text_offset_x;
         for (placeholder_text) |c, i| {
             const glyph = &ui.quad_shader.font.glyphs[c];
@@ -447,7 +453,7 @@ pub const SearchBar = struct {
         }
     }
 
-    pub fn onCursorEnter(self: *Self, ui: *UserInterface()) void {
+    pub fn onCursorEnter(self: *Self, ui: *UserInterface) void {
         if (builtin.mode == .Debug) {
             warn("cursor entered the SearchBar\n", .{});
         }
@@ -479,7 +485,7 @@ pub const SearchBar = struct {
         ui.draw_required = true;
     }
 
-    pub fn onCursorLeave(self: *Self, ui: *UserInterface()) void {
+    pub fn onCursorLeave(self: *Self, ui: *UserInterface) void {
         if (builtin.mode == .Debug) {
             warn("cursor left the SearchBar\n", .{});
         }
@@ -511,15 +517,19 @@ pub const SearchBar = struct {
         ui.draw_required = true;
     }
 
-    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface()) void {
+    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface) void {
         if (builtin.mode == .Debug) {
             warn("left mouse button down on SearchBar\n", .{});
         }
 
-        self.onFocus(widget, ui);
+        if (!self.is_focused) {
+            self.onFocus(widget, ui);
+        }
+
+        self.elapsed_ns = 0;
     }
 
-    pub fn onFocus(self: *Self, widget: *Widget, ui: *UserInterface()) void {
+    pub fn onFocus(self: *Self, widget: *Widget, ui: *UserInterface) void {
         if (builtin.mode == .Debug) {
             warn("SearchBar focus\n", .{});
         }
@@ -551,7 +561,7 @@ pub const SearchBar = struct {
         self.elapsed_ns = 0;
     }
 
-    pub fn onUnfocus(self: *Self, widget: *Widget, ui: *UserInterface()) void {
+    pub fn onUnfocus(self: *Self, widget: *Widget, ui: *UserInterface) void {
         if (builtin.mode == .Debug) {
             warn("SearchBar unfocus\n", .{});
         }
@@ -559,7 +569,6 @@ pub const SearchBar = struct {
         self.is_focused = false;
 
         const cd = &ui.quad_shader.colour_data;
-
         cd.data[Index.Body.MainRect.ColourId] = .{
             .red = 47.0 / 255.0,
             .green = 48.0 / 255.0,
@@ -584,10 +593,54 @@ pub const SearchBar = struct {
             }
         }
 
+        if (self.search_string_length == 0) {
+            self.resetText(ui);
+        }
+
         ui.draw_required = true;
     }
 
-    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface()) void {
+    pub fn onKeyEvent(self: *Self, widget: *Widget, ui: *UserInterface) void {
+        self.input_handled = false;
+
+        const keys = &ui.keyboard_state;
+        if (keys.action != GLFW_RELEASE) {
+            if (keys.modifiers == GLFW_MOD_CONTROL) {
+                switch (keys.key) {
+                    GLFW_KEY_C => return,
+                    GLFW_KEY_X => return,
+                    GLFW_KEY_V => return,
+                    GLFW_KEY_Z => return,
+                    GLFW_KEY_Y => return,
+                    else => return,
+                }
+            } else {
+                switch (keys.key) {
+                    GLFW_KEY_BACKSPACE => self.onBackspace(ui),
+                    GLFW_KEY_DELETE => return,
+                    GLFW_KEY_LEFT => self.onLeft(ui),
+                    GLFW_KEY_RIGHT => self.onRight(ui),
+                    GLFW_KEY_ENTER => return,
+                    else => return,
+                }
+            }
+
+            self.elapsed_ns = 0;
+        }
+    }
+
+    pub fn onCharacterEvent(self: *Self, widget: *Widget, ui: *UserInterface, codepoint: u32) void {
+        if (!self.text_navigation_mode and !self.input_handled) {
+            if (self.search_string_length < search_text_limit) {
+                const new_char_index: u32 = math.min(self.search_string_length, self.cursor_position) + Index.SearchText.UserText.QuadId;
+                self.insertChar(ui, codepoint, new_char_index);
+            }
+
+            self.elapsed_ns = 0;
+        }
+    }
+
+    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
         const quads = ui.quad_shader.quad_data.data;
 
         quads[Index.Body.MainRect.QuadId].transform.width = ui.width - 160;
@@ -601,12 +654,12 @@ pub const SearchBar = struct {
         quads[Index.TextOverflow.Right.QuadId].transform.x = ui.width - 160;
     }
 
-    pub fn containsPoint(self: *Self, ui: *UserInterface(), x: u16, y: u16) bool {
+    pub fn containsPoint(self: *Self, ui: *UserInterface, x: u16, y: u16) bool {
         const t = ui.quad_shader.quad_data.data[Index.Body.MainRect.QuadId].transform;
         return (x >= t.x) and (x <= (t.x + t.width)) and (y >= t.y) and (y <= (t.y + t.height));
     }
 
-    pub fn animate(self: *Self, widget: *Widget, ui: *UserInterface(), time_delta: u64) void {
+    pub fn animate(self: *Self, widget: *Widget, ui: *UserInterface, time_delta: u64) void {
         self.elapsed_ns += time_delta;
         if (self.elapsed_ns >= (1000 * 1000000)) {
             self.elapsed_ns = 0;
@@ -615,5 +668,129 @@ pub const SearchBar = struct {
         const alpha: f32 = if (self.elapsed_ns <= (500 * 1000000)) 180.0 / 255.0 else 0.0;
         ui.quad_shader.colour_data.data[Index.TextCursor.ColourId].alpha = alpha;
         ui.animating = true;
+    }
+
+    inline fn moveCursor(self: *Self, ui: *UserInterface, advance: i32) void {
+        const x = &ui.quad_shader.quad_data.data[Index.TextCursor.QuadId].transform.x;
+        x.* = @intCast(u16, @as(i17, x.*) + advance);
+    }
+
+    inline fn resetText(self: *Self, ui: *UserInterface) void {
+        var d = &ui.quad_shader.draw_command_data.data[Index.SearchText.DrawCommandId];
+        d.instance_count = placeholder_text.len;
+        d.base_instance = Index.SearchText.PlaceholderText.QuadId;
+    }
+
+    inline fn updateText(self: *Self, ui: *UserInterface, text_length: u8) void {
+        var command = &ui.quad_shader.draw_command_data.data[Index.SearchText.DrawCommandId];
+        command.instance_count = text_length;
+        command.base_instance = Index.SearchText.UserText.QuadId;
+    }
+
+    inline fn insertChar(self: *Self, ui: *UserInterface, codepoint: u32, index: usize) void {
+        const c = @intCast(u8, codepoint);
+        const q = &ui.quad_shader.quad_data;
+        const glyph = ui.quad_shader.font.glyphs[c];
+        const glyph_width = @intCast(u16, glyph.x1 - glyph.x0);
+        const glyph_height = @intCast(u16, glyph.y1 - glyph.y0);
+        const bearing_x = glyph.x_off;
+        const bearing_y = glyph.y_off;
+
+        const to_copy = self.search_string_length - self.cursor_position;
+        var i: usize = index + to_copy;
+        while (i > index) : (i -= 1) {
+            q.data[i] = q.data[i - 1];
+            q.data[i].transform.x += @intCast(u16, glyph.advance);
+        }
+
+        q.data[index].transform = .{
+            .x = @intCast(u16, @as(i33, self.cursor_text_origin) + bearing_x),
+            .y = @intCast(u16, @as(i33, text_offset_y) - bearing_y),
+            .width = glyph_width,
+            .height = glyph_height,
+        };
+        q.data[index].character = c;
+
+        self.cursor_text_origin += @intCast(u16, glyph.advance);
+        self.cursor_position += 1;
+        self.search_string_length += 1;
+
+        self.moveCursor(ui, @intCast(i32, glyph.advance));
+        self.updateText(ui, self.search_string_length);
+    }
+
+    inline fn onBackspace(self: *Self, ui: *UserInterface) void {
+        var q = &ui.quad_shader.quad_data;
+
+        if (self.search_string_length > 0 and self.cursor_position > 0) {
+            const c_ind = Index.SearchText.UserText.QuadId + self.cursor_position - 1;
+            var cursor_advance = @intCast(u16, ui.quad_shader.font.glyphs[q.data[c_ind].character].advance);
+            var num_to_delete: u8 = 1;
+
+            if (ui.keyboard_state.modifiers == GLFW_MOD_CONTROL) {
+                self.calculateBackwardJump(ui, c_ind - 1, &cursor_advance, &num_to_delete);
+            }
+        }
+    }
+
+    inline fn onLeft(self: *Self, ui: *UserInterface) void {
+        if (self.search_string_length > 0 and self.cursor_position > 0) {
+            const previous_character_quad_id = Index.SearchText.UserText.QuadId + self.cursor_position - 1;
+            const previous_character = ui.quad_shader.quad_data.data[previous_character_quad_id].character;
+            const character_advance = ui.quad_shader.font.glyphs[previous_character].advance;
+
+            const negative_advance = @intCast(i32, -%character_advance);
+            self.moveCursor(ui, negative_advance);
+            self.cursor_position -= 1;
+            self.cursor_text_origin -= @intCast(u16, character_advance);
+        }
+    }
+
+    inline fn onRight(self: *Self, ui: *UserInterface) void {
+        if (self.search_string_length > 0 and self.cursor_position < self.search_string_length) {
+            const next_character_quad_id = Index.SearchText.UserText.QuadId + self.cursor_position;
+            const next_character = ui.quad_shader.quad_data.data[next_character_quad_id].character;
+            const character_advance = ui.quad_shader.font.glyphs[next_character].advance;
+
+            self.moveCursor(ui, @intCast(i32, character_advance));
+            self.cursor_position += 1;
+            self.cursor_text_origin += @intCast(u16, character_advance);
+        }
+    }
+
+    inline fn calculateBackwardJump(self: *Self, ui: *UserInterface, index: u8, advance: *u16, num_chars: *u8) void {
+        var q = &ui.quad_shader.quad_data;
+        var i: u8 = index;
+        if (q.data[i + 1].character == ' ') {
+            while (i >= Index.SearchText.UserText.QuadId and q.data[i].character == ' ') {
+                advance.* += @intCast(u16, ui.quad_shader.font.glyphs[q.data[i].character].advance);
+                i -= 1;
+            }
+        } else {
+            while (i >= Index.SearchText.UserText.QuadId and q.data[i].character != ' ') {
+                advance.* += @intCast(u16, ui.quad_shader.font.glyphs[q.data[i].character].advance);
+                i -= 1;
+            }
+        }
+
+        num_chars.* += index - i;
+    }
+
+    inline fn calculateForwardJump(self: *Self, ui: *UserInterface, index: u8, advance: *u16, num_chars: *u8) void {
+        var q = &ui.quad_shader.quad_data;
+        var i: usize = index;
+        if (q.data[i].character == ' ') {
+            while (i < Index.SearchText.UserText.QuadId + self.search_string_length and q.data[i].character == ' ') {
+                advance.* += ui.quad_shader.font.glyphs[q.data[i].character].advance;
+                i += 1;
+            }
+        } else {
+            while (i < Index.SearchText.UserText.QuadId + self.search_string_length and q.data[i].character != ' ') {
+                advance.* += ui.quad_shader.font.glyphs[q.data[i].character].advance;
+                i += 1;
+            }
+        }
+
+        num_chars.* += i - index;
     }
 };
