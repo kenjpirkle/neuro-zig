@@ -83,17 +83,23 @@ const Index = struct {
         pub const ColourIndicesId = 275;
     };
 
-    pub const SuggestionRects = struct {
+    pub const SelectionRect = struct {
         pub const QuadId = 276;
         pub const ColourId = 14;
         pub const ColourIndicesId = 276;
+    };
+
+    pub const SuggestionRects = struct {
+        pub const QuadId = 277;
+        pub const ColourId = 15;
+        pub const ColourIndicesId = 277;
         pub const DrawCommandId = 2;
     };
 
     pub const SuggestionText = struct {
-        pub const QuadId = 286;
-        pub const ColourId = 16;
-        pub const ColourIndicesId = 286;
+        pub const QuadId = 287;
+        pub const ColourId = 17;
+        pub const ColourIndicesId = 287;
         pub const DrawCommandId = 3;
     };
 };
@@ -102,7 +108,7 @@ pub const SearchBar = packed struct {
     const Self = @This();
 
     const placeholder_text = "search...";
-    const search_text_limit = 256;
+    const search_text_limit = 255;
     const text_offset_x: u16 = 30;
     const text_offset_y: u16 = 43;
 
@@ -249,6 +255,17 @@ pub const SearchBar = packed struct {
                 .layer = 5,
                 .character = 0,
             },
+            // selection rect
+            .{
+                .transform = .{
+                    .x = text_offset_x,
+                    .y = text_offset_y - @intCast(u16, ui.quad_shader.font.max_ascender),
+                    .width = 0,
+                    .height = @intCast(u16, ui.quad_shader.font.max_glyph_height),
+                },
+                .layer = 4,
+                .character = 0,
+            },
         });
 
         ui.quad_shader.colour_data.append(&[_]Colour{
@@ -343,6 +360,13 @@ pub const SearchBar = packed struct {
                 .blue = 1.0,
                 .alpha = 0.0,
             },
+            // selection rect
+            .{
+                .red = 50.0 / 255.0,
+                .green = 50.0 / 255.0,
+                .blue = 1.0,
+                .alpha = 0.0,
+            },
         });
 
         ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
@@ -400,6 +424,12 @@ pub const SearchBar = packed struct {
                 .top_right = 13,
                 .bottom_right = 13,
             },
+            .{
+                .top_left = 14,
+                .bottom_left = 14,
+                .top_right = 14,
+                .bottom_right = 14,
+            },
         });
 
         ui.quad_shader.draw_command_data.append(&[_]DrawArraysIndirectCommand{
@@ -417,7 +447,7 @@ pub const SearchBar = packed struct {
             },
             .{
                 .vertex_count = 4,
-                .instance_count = 3,
+                .instance_count = 4,
                 .first_vertex = 0,
                 .base_instance = 273,
             },
@@ -609,7 +639,7 @@ pub const SearchBar = packed struct {
                 switch (keys.key) {
                     GLFW_KEY_C => return,
                     GLFW_KEY_X => return,
-                    GLFW_KEY_V => return,
+                    GLFW_KEY_V => self.onPaste(ui),
                     GLFW_KEY_Z => return,
                     GLFW_KEY_Y => return,
                     else => return,
@@ -798,6 +828,64 @@ pub const SearchBar = packed struct {
             self.cursor_position += 1;
             self.cursor_text_origin += @intCast(u16, character_advance);
         }
+    }
+
+    inline fn onPaste(self: *Self, ui: *UserInterface) void {
+        const q = &ui.quad_shader.quad_data;
+        const clipboard = glfwGetClipboardString(ui.window);
+        if (clipboard[0] == 0) {
+            return;
+        }
+
+        // copy all characters from cursor position to end
+        const end_quad_id: usize = Index.SearchText.UserText.QuadId + 255;
+        var cursor_char_quad_id = Index.SearchText.UserText.QuadId + self.cursor_position;
+        const to_copy = self.search_string_length - self.cursor_position;
+        var i: usize = 0;
+        while (i < to_copy) : (i += 1) {
+            q.data[end_quad_id - i] = q.data[cursor_char_quad_id + to_copy - 1 - i];
+        }
+
+        const old_cursor_text_origin = self.cursor_text_origin;
+        // insert pasted characters
+        const available_space = search_text_limit - self.search_string_length;
+        var cursor_advance: i32 = 0;
+        i = 0;
+        while (clipboard[i] != 0 and i < available_space) : (i += 1) {
+            const c = @intCast(u8, clipboard[i]);
+            const glyph = ui.quad_shader.font.glyphs[c];
+            const glyph_width = @intCast(u16, glyph.x1 - glyph.x0);
+            const glyph_height = @intCast(u16, glyph.y1 - glyph.y0);
+            const bearing_x = glyph.x_off;
+            const bearing_y = glyph.y_off;
+
+            q.data[cursor_char_quad_id + i].transform = .{
+                .x = @intCast(u16, @as(i33, self.cursor_text_origin) + bearing_x),
+                .y = @intCast(u16, @as(i33, text_offset_y) - bearing_y),
+                .width = glyph_width,
+                .height = glyph_height,
+            };
+            q.data[cursor_char_quad_id + i].character = c;
+
+            self.cursor_text_origin += @intCast(u16, glyph.advance);
+            cursor_advance += @intCast(i32, glyph.advance);
+        }
+
+        self.cursor_position += @intCast(u8, i);
+        self.search_string_length += @intCast(u8, i);
+
+        // copy old characters back from end if required
+        const new_offset = self.cursor_text_origin - old_cursor_text_origin;
+        cursor_char_quad_id = Index.SearchText.UserText.QuadId + self.cursor_position;
+        i = 0;
+        while (i < to_copy) : (i += 1) {
+            const index = cursor_char_quad_id + i;
+            q.data[index] = q.data[end_quad_id - to_copy + 1 + i];
+            q.data[index].transform.x += new_offset;
+        }
+
+        self.moveCursor(ui, cursor_advance);
+        self.updateText(ui, self.search_string_length);
     }
 
     inline fn calculateBackwardJump(self: *Self, ui: *UserInterface, index: u8, advance: *u16, num_chars: *u8) void {
