@@ -12,97 +12,7 @@ const QuadColourIndices = @import("../gl/quad_colour_indices.zig").QuadColourInd
 const Colour = @import("../gl/colour.zig").Colour;
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 usingnamespace @import("../c.zig");
-
-const Index = struct {
-    pub const Body = struct {
-        pub const MainRect = struct {
-            pub const QuadId = 1;
-            pub const ColourId = 1;
-            pub const ColourIndicesId = 1;
-        };
-        pub const Shadow = struct {
-            pub const QuadId = 2;
-            pub const ColourId = 3;
-            pub const ColourIndicesId = 2;
-        };
-        pub const Highlight = struct {
-            pub const QuadId = 3;
-            pub const ColourId = 5;
-            pub const ColourIndicesId = 3;
-        };
-    };
-
-    pub const FocusHighlight = struct {
-        pub const Top = struct {
-            pub const QuadId = 4;
-            pub const ColourIndicesId = 4;
-        };
-        pub const Bottom = struct {
-            pub const QuadId = 5;
-            pub const ColourIndicesId = 5;
-        };
-        pub const Left = struct {
-            pub const QuadId = 6;
-            pub const ColourIndicesId = 6;
-        };
-        pub const Right = struct {
-            pub const QuadId = 7;
-            pub const ColourIndicesId = 7;
-        };
-        pub const ColourId = 7;
-    };
-
-    pub const SearchText = struct {
-        pub const PlaceholderText = struct {
-            pub const QuadId = 8;
-            pub const ColourIndicesId = 8;
-        };
-        pub const UserText = struct {
-            pub const QuadId = 17;
-            pub const ColourIndicesId = 17;
-        };
-        pub const ColourId = 8;
-        pub const DrawCommandId = 1;
-    };
-
-    pub const TextOverflow = struct {
-        pub const Left = struct {
-            pub const QuadId = 273;
-            pub const ColourIndicesId = 273;
-        };
-        pub const Right = struct {
-            pub const QuadId = 274;
-            pub const ColourIndicesId = 274;
-        };
-        pub const ColourId = 9;
-    };
-
-    pub const TextCursor = struct {
-        pub const QuadId = 275;
-        pub const ColourId = 13;
-        pub const ColourIndicesId = 275;
-    };
-
-    pub const SelectionRect = struct {
-        pub const QuadId = 276;
-        pub const ColourId = 14;
-        pub const ColourIndicesId = 276;
-    };
-
-    pub const SuggestionRects = struct {
-        pub const QuadId = 277;
-        pub const ColourId = 15;
-        pub const ColourIndicesId = 277;
-        pub const DrawCommandId = 2;
-    };
-
-    pub const SuggestionText = struct {
-        pub const QuadId = 287;
-        pub const ColourId = 17;
-        pub const ColourIndicesId = 287;
-        pub const DrawCommandId = 3;
-    };
-};
+const Index = @import("../buffer_indices.zig").SearchBarIndices;
 
 pub const SearchBar = packed struct {
     const Self = @This();
@@ -110,7 +20,8 @@ pub const SearchBar = packed struct {
     const placeholder_text = "search...";
     const search_text_limit = 255;
     const text_offset_x: u16 = 30;
-    const text_offset_y: u16 = 43;
+    const offset_y: u16 = 24;
+    const text_offset_y: u16 = 43 + offset_y;
 
     parent: ?*Widget = null,
     elapsed_ns: u64 = 0,
@@ -134,18 +45,18 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = 20,
-                    .y = 20,
+                    .y = 20 + offset_y,
                     .width = ui.width - 160,
                     .height = 34,
                 },
                 .layer = 2,
-                .character = 0,
+                .character = 1,
             },
             // main body shadow
             .{
                 .transform = .{
                     .x = 20,
-                    .y = 20,
+                    .y = 20 + offset_y,
                     .width = ui.width - 160,
                     .height = 4,
                 },
@@ -156,7 +67,7 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = 21,
-                    .y = 52,
+                    .y = 52 + offset_y,
                     .width = ui.width - 162,
                     .height = 2,
                 },
@@ -167,7 +78,7 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = 17,
-                    .y = 18,
+                    .y = 18 + offset_y,
                     .width = ui.width - 155,
                     .height = 1,
                 },
@@ -178,7 +89,7 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = 17,
-                    .y = 55,
+                    .y = 55 + offset_y,
                     .width = ui.width - 155,
                     .height = 1,
                 },
@@ -189,7 +100,7 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = 17,
-                    .y = 19,
+                    .y = 19 + offset_y,
                     .width = 1,
                     .height = 36,
                 },
@@ -200,7 +111,7 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = ui.width - 139,
-                    .y = 19,
+                    .y = 19 + offset_y,
                     .width = 1,
                     .height = 36,
                 },
@@ -226,7 +137,7 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = 20,
-                    .y = 20,
+                    .y = 20 + offset_y,
                     .width = text_offset_x,
                     .height = 34,
                 },
@@ -237,9 +148,20 @@ pub const SearchBar = packed struct {
             .{
                 .transform = .{
                     .x = ui.width - 170,
-                    .y = 20,
+                    .y = 20 + offset_y,
                     .width = text_offset_x,
                     .height = 34,
+                },
+                .layer = 4,
+                .character = 0,
+            },
+            // selection rect
+            .{
+                .transform = .{
+                    .x = text_offset_x,
+                    .y = text_offset_y - @intCast(u16, ui.quad_shader.font.max_ascender),
+                    .width = 0,
+                    .height = @intCast(u16, ui.quad_shader.font.max_glyph_height),
                 },
                 .layer = 4,
                 .character = 0,
@@ -253,17 +175,6 @@ pub const SearchBar = packed struct {
                     .height = @intCast(u16, ui.quad_shader.font.max_glyph_height),
                 },
                 .layer = 5,
-                .character = 0,
-            },
-            // selection rect
-            .{
-                .transform = .{
-                    .x = text_offset_x,
-                    .y = text_offset_y - @intCast(u16, ui.quad_shader.font.max_ascender),
-                    .width = 0,
-                    .height = @intCast(u16, ui.quad_shader.font.max_glyph_height),
-                },
-                .layer = 4,
                 .character = 0,
             },
         });
@@ -318,6 +229,13 @@ pub const SearchBar = packed struct {
                 .blue = 1.0,
                 .alpha = 0.0,
             },
+            // placeholder search text
+            .{
+                .red = 0.7,
+                .green = 0.7,
+                .blue = 1.0,
+                .alpha = 120.0 / 255.0,
+            },
             // search text
             .{
                 .red = 1.0,
@@ -371,71 +289,79 @@ pub const SearchBar = packed struct {
 
         ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
             .{
-                .top_left = 1,
-                .bottom_left = 2,
-                .top_right = 1,
-                .bottom_right = 2,
+                .top_left = Index.Body.MainRect.ColourId,
+                .bottom_left = Index.Body.MainRect.ColourId + 1,
+                .top_right = Index.Body.MainRect.ColourId,
+                .bottom_right = Index.Body.MainRect.ColourId + 1,
             },
             .{
-                .top_left = 3,
-                .bottom_left = 4,
-                .top_right = 3,
-                .bottom_right = 4,
+                .top_left = Index.Body.Shadow.ColourId,
+                .bottom_left = Index.Body.Shadow.ColourId + 1,
+                .top_right = Index.Body.Shadow.ColourId,
+                .bottom_right = Index.Body.Shadow.ColourId + 1,
             },
             .{
-                .top_left = 5,
-                .bottom_left = 6,
-                .top_right = 5,
-                .bottom_right = 6,
+                .top_left = Index.Body.Highlight.ColourId,
+                .bottom_left = Index.Body.Highlight.ColourId + 1,
+                .top_right = Index.Body.Highlight.ColourId,
+                .bottom_right = Index.Body.Highlight.ColourId + 1,
             },
         });
         ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
             .{
-                .top_left = 7,
-                .bottom_left = 7,
-                .top_right = 7,
-                .bottom_right = 7,
+                .top_left = Index.FocusHighlight.ColourId,
+                .bottom_left = Index.FocusHighlight.ColourId,
+                .top_right = Index.FocusHighlight.ColourId,
+                .bottom_right = Index.FocusHighlight.ColourId,
             },
         } ** 4);
         ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
             .{
-                .top_left = 8,
-                .bottom_left = 8,
-                .top_right = 8,
-                .bottom_right = 8,
+                .top_left = Index.SearchText.PlaceholderText.ColourId,
+                .bottom_left = Index.SearchText.PlaceholderText.ColourId,
+                .top_right = Index.SearchText.PlaceholderText.ColourId,
+                .bottom_right = Index.SearchText.PlaceholderText.ColourId,
             },
-        } ** 265);
+        } ** placeholder_text.len);
         ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
             .{
-                .top_left = 9,
-                .bottom_left = 10,
-                .top_right = 11,
-                .bottom_right = 12,
+                .top_left = Index.SearchText.UserText.ColourId,
+                .bottom_left = Index.SearchText.UserText.ColourId,
+                .top_right = Index.SearchText.UserText.ColourId,
+                .bottom_right = Index.SearchText.UserText.ColourId,
+            },
+        } ** 256);
+        ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
+            .{
+                .top_left = Index.TextOverflow.ColourId,
+                .bottom_left = Index.TextOverflow.ColourId + 1,
+                .top_right = Index.TextOverflow.ColourId + 2,
+                .bottom_right = Index.TextOverflow.ColourId + 3,
             },
             .{
-                .top_left = 11,
-                .bottom_left = 12,
-                .top_right = 9,
-                .bottom_right = 10,
+                .top_left = Index.TextOverflow.ColourId + 2,
+                .bottom_left = Index.TextOverflow.ColourId + 3,
+                .top_right = Index.TextOverflow.ColourId,
+                .bottom_right = Index.TextOverflow.ColourId + 1,
             },
             .{
-                .top_left = 13,
-                .bottom_left = 13,
-                .top_right = 13,
-                .bottom_right = 13,
+                .top_left = Index.SelectionRect.ColourId,
+                .bottom_left = Index.SelectionRect.ColourId,
+                .top_right = Index.SelectionRect.ColourId,
+                .bottom_right = Index.SelectionRect.ColourId,
             },
             .{
-                .top_left = 14,
-                .bottom_left = 14,
-                .top_right = 14,
-                .bottom_right = 14,
+                .top_left = Index.TextCursor.ColourId,
+                .bottom_left = Index.TextCursor.ColourId,
+                .top_right = Index.TextCursor.ColourId,
+                .bottom_right = Index.TextCursor.ColourId,
             },
         });
 
         ui.quad_shader.draw_command_data.append(&[_]DrawArraysIndirectCommand{
             .{
                 .vertex_count = 4,
-                .instance_count = 8,
+                .instance_count = 13,
                 .first_vertex = 0,
                 .base_instance = 0,
             },
@@ -443,13 +369,13 @@ pub const SearchBar = packed struct {
                 .vertex_count = 4,
                 .instance_count = 265,
                 .first_vertex = 0,
-                .base_instance = 8,
+                .base_instance = 13,
             },
             .{
                 .vertex_count = 4,
                 .instance_count = 4,
                 .first_vertex = 0,
-                .base_instance = 273,
+                .base_instance = 278,
             },
         });
 
@@ -547,7 +473,7 @@ pub const SearchBar = packed struct {
         ui.draw_required = true;
     }
 
-    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface) void {
+    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface, x: u16, y: u16) void {
         if (builtin.mode == .Debug) {
             warn("left mouse button down on SearchBar\n", .{});
         }
@@ -637,12 +563,13 @@ pub const SearchBar = packed struct {
         if (keys.action != GLFW_RELEASE) {
             if (keys.modifiers == GLFW_MOD_CONTROL) {
                 switch (keys.key) {
-                    GLFW_KEY_C => return,
-                    GLFW_KEY_X => return,
+                    GLFW_KEY_A => self.selectAll(ui),
+                    GLFW_KEY_X => {},
+                    GLFW_KEY_Z => {},
+                    GLFW_KEY_Y => {},
+                    GLFW_KEY_C => {},
                     GLFW_KEY_V => self.onPaste(ui),
-                    GLFW_KEY_Z => return,
-                    GLFW_KEY_Y => return,
-                    else => return,
+                    else => {},
                 }
             } else {
                 switch (keys.key) {
@@ -650,8 +577,8 @@ pub const SearchBar = packed struct {
                     GLFW_KEY_DELETE => self.onDelete(ui),
                     GLFW_KEY_LEFT => self.onLeft(ui),
                     GLFW_KEY_RIGHT => self.onRight(ui),
-                    GLFW_KEY_ENTER => return,
-                    else => return,
+                    GLFW_KEY_ENTER => {},
+                    else => {},
                 }
             }
 
@@ -685,8 +612,8 @@ pub const SearchBar = packed struct {
     }
 
     pub fn containsPoint(self: *Self, ui: *UserInterface, x: u16, y: u16) bool {
-        const t = ui.quad_shader.quad_data.data[Index.Body.MainRect.QuadId].transform;
-        return (x >= t.x) and (x <= (t.x + t.width)) and (y >= t.y) and (y <= (t.y + t.height));
+        const t = &ui.quad_shader.quad_data.data[Index.Body.MainRect.QuadId];
+        return t.contains(x, y);
     }
 
     pub fn animate(self: *Self, widget: *Widget, ui: *UserInterface, time_delta: u64) void {
@@ -886,6 +813,17 @@ pub const SearchBar = packed struct {
 
         self.moveCursor(ui, cursor_advance);
         self.updateText(ui, self.search_string_length);
+    }
+
+    inline fn selectAll(self: *Self, ui: *UserInterface) void {
+        if (self.search_string_length < 1) {
+            return;
+        }
+
+        const q = &ui.quad_shader.quad_data.data[Index.SearchText.UserText.QuadId + self.search_string_length - 1];
+
+        ui.quad_shader.quad_data.data[Index.SelectionRect.QuadId].transform.width = q.transform.x + q.transform.width - text_offset_x;
+        ui.quad_shader.colour_data.data[Index.SelectionRect.ColourId].alpha = 100.0 / 255.0;
     }
 
     inline fn calculateBackwardJump(self: *Self, ui: *UserInterface, index: u8, advance: *u16, num_chars: *u8) void {
