@@ -29,8 +29,10 @@ const uvec2 vertices[4] = {
 void main() {
     if (in_character == 0) {
         is_text = 0;
-    } else {
+    } else if (in_character == 1) {
         is_text = 1;
+    } else {
+        is_text = 2;
     }
 
     const float x = (instance_transform.x + (instance_transform.z * vertices[gl_VertexID].x)) * res_multi.x - 1.0;

@@ -20,10 +20,12 @@ float rand(vec2 uv) {
 }
 
 void main() {
-    const float r = rand(gl_FragCoord.xy) * 0.0125;
+    const float r = rand(gl_FragCoord.xy) * 0.015;
     const vec4 sampled = vec4(1.0, 1.0, 1.0, texture(textures[0], tex_coords).r);
 
     if (is_text == 1) {
+        out_colour = colour;
+    } else if (is_text == 2) {
         out_colour = colour * sampled;
     } else {
         out_colour = vec4(colour.xyz - r * 1.25, colour.w);
