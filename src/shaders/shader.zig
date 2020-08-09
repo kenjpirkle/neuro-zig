@@ -13,7 +13,7 @@ pub const ShaderSource = struct {
 pub const Shader = struct {
     program: GLuint,
 
-    pub fn init(shaders: var) !Shader {
+    pub fn init(shaders: []const ShaderSource) !Shader {
         var ids = IdList.init(allocator);
         defer ids.deinit();
 
