@@ -1,4 +1,4 @@
-usingnamespace @import("card/card.zig");
+const Card = @import("card.zig").Card;
 
 pub const CardMetrics = packed struct {
     card: *Card,
