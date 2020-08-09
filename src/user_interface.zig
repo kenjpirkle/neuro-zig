@@ -5,12 +5,12 @@ const allocator = std.heap.c_allocator;
 const SegmentedList = std.SegmentedList;
 const Timer = std.time.Timer;
 const QuadShader = @import("shaders/quad_shader.zig").QuadShader;
+const Quad = @import("gl/quad.zig").Quad;
+const Colour = @import("gl/colour.zig").Colour;
+const QuadColourIndices = @import("gl/quad_colour_indices.zig").QuadColourIndices;
 const DrawArraysIndirectCommand = @import("gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 const Widget = @import("widgets/widget.zig").Widget;
-const WidgetTag = @import("widgets/widget.zig").WidgetTag;
-const Rectangle = @import("widgets/rectangle.zig").Rectangle;
-const TitleBar = @import("widgets/title_bar.zig").TitleBar;
-const SearchBar = @import("widgets/search_bar.zig").SearchBar;
+const WidgetIndex = @import("widgets/widget_index.zig");
 usingnamespace @import("c.zig");
 
 pub fn checkOpenGLError() bool {
@@ -34,40 +34,40 @@ pub const KeyboardState = struct {
 pub const UserInterface = struct {
     const Self = @This();
 
-    window: *GLFWwindow = undefined,
-    keyboard_state: KeyboardState = undefined,
-    width: u16 = undefined,
-    height: u16 = undefined,
-    x: i32 = undefined,
-    y: i32 = undefined,
-    video_mode: *const GLFWvidmode = undefined,
-    cursor: ?*GLFWcursor = undefined,
-    quad_shader: QuadShader(.{}) = undefined,
-    widget_with_cursor: ?*Widget = undefined,
-    widget_with_focus: ?*Widget = undefined,
-    widget_with_mouse: ?*Widget = undefined,
-    widgets: [3]Widget,
-    animating_widgets: SegmentedList(?*Widget, 4) = undefined,
-    timer: Timer = undefined,
+    window: *GLFWwindow,
+    keyboard_state: KeyboardState,
+    width: u16,
+    height: u16,
+    window_position_x: i32,
+    window_position_y: i32,
+    video_mode: *const GLFWvidmode,
+    cursor: ?*GLFWcursor,
+    cursor_x: u16,
+    cursor_y: u16,
+    quad_shader: QuadShader,
+    widget_with_cursor: ?*Widget,
+    widget_with_focus: ?*Widget,
+    widget_with_mouse: ?*Widget,
+    widgets: SegmentedList(Widget, 8),
+    root_widgets: SegmentedList(*Widget, 4),
+    animating_widgets: SegmentedList(?*Widget, 4),
+    timer: Timer,
     before_frame: u64 = 0,
     time_delta: u64 = 0,
     draw_required: bool,
     animating: bool,
     animating_locked: bool,
+    input_handled: bool,
 
-    pub fn init(self: *Self) !void {
-        self.widgets = .{
-            .{
-                .Rectangle = .{},
-            },
-            .{
-                .TitleBar = .{},
-            },
-            .{
-                .SearchBar = .{},
-            },
-        };
+    pub fn init(self: *Self, widgets: []const Widget, root_widgets: []*Widget) !void {
+        self.widgets = SegmentedList(Widget, 8).init(allocator);
+        try self.widgets.pushMany(widgets);
+
+        self.root_widgets = SegmentedList(*Widget, 4).init(allocator);
+        try self.root_widgets.pushMany(root_widgets);
+
         self.animating_widgets = SegmentedList(?*Widget, 4).init(allocator);
+
         self.timer = try Timer.start();
 
         if (glfwInit() == 0) {
@@ -83,9 +83,9 @@ pub const UserInterface = struct {
         self.width = half_width;
         self.height = half_height;
         self.window = glfwCreateWindow(self.width, self.height, "neuro-zig", null, null) orelse return error.GlfwCreateWindowFailed;
-        self.x = half_width - @divTrunc(self.width, 2);
-        self.y = half_height - @divTrunc(self.height, 2);
-        glfwSetWindowPos(self.window, self.x, self.y);
+        self.window_position_x = half_width - @divTrunc(self.width, 2);
+        self.window_position_y = half_height - @divTrunc(self.height, 2);
+        glfwSetWindowPos(self.window, self.window_position_x, self.window_position_y);
         self.cursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR) orelse return error.GlfwCreateCursorFailed;
         self.widget_with_cursor = null;
         self.widget_with_focus = null;
@@ -102,9 +102,12 @@ pub const UserInterface = struct {
         try self.quad_shader.init(self.width, self.height);
         setGlState(self.width, self.height);
 
-        for (self.widgets) |*w| {
+        self.quad_shader.beginModify();
+        var widget = self.widgets.iterator(0);
+        while (widget.next()) |w| {
             try w.insertIntoUi(self);
         }
+        self.quad_shader.endModify();
     }
 
     pub fn deinit(self: *Self) void {
@@ -112,6 +115,7 @@ pub const UserInterface = struct {
         glfwDestroyWindow(self.window);
         glfwTerminate();
         self.animating_widgets.deinit();
+        self.widgets.deinit();
         self.quad_shader.deinit();
     }
 
@@ -136,6 +140,7 @@ pub const UserInterface = struct {
                 glfwWaitEvents();
                 if (self.draw_required) {
                     self.display();
+
                     self.draw_required = false;
                     self.animating = false;
                     self.animating_locked = false;
@@ -150,6 +155,22 @@ pub const UserInterface = struct {
         // FIXED GL_INVALID_OPERATION error generated. Bound draw indirect buffer is not large enough. BECAUSE THE SECOND ARGUMENT IN glMultiDrawArraysIndirect SHOULD BE 0 (null) AND NOT!!! THE ADDRESS OF THE MAPPED BUFFER
         glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, null, count, 0);
         glfwSwapBuffers(self.window);
+    }
+
+    pub inline fn quadAt(self: *Self, index: usize) *Quad {
+        return &self.quad_shader.quad_data.data[index];
+    }
+
+    pub inline fn colourAt(self: *Self, index: usize) *Colour {
+        return &self.quad_shader.colour_data.data[index];
+    }
+
+    pub inline fn quadColourIndicesAt(self: *Self, index: usize) *QuadColourIndices {
+        return &self.quad_shader.colour_index_data.data[index];
+    }
+
+    pub inline fn drawCommandAt(self: *Self, index: usize) *DrawArraysIndirectCommand {
+        return &self.quad_shader.draw_command_data.data[index];
     }
 
     inline fn setWindowHints() void {
@@ -215,23 +236,26 @@ pub const UserInterface = struct {
             return;
         }
 
-        const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+        const ui = getUserPointer(win);
+
         ui.width = @intCast(u16, width);
         ui.height = @intCast(u16, height);
         ui.quad_shader.updateWindowSize(ui.width, ui.height);
         glViewport(0, 0, width, height);
 
         // change this to tree navigation through the scene graph
-        for (ui.widgets) |*w| {
+        var widget = ui.widgets.iterator(0);
+        while (widget.next()) |w| {
             w.onWindowSizeChanged(ui);
         }
         ui.display();
     }
 
     fn onWindowPosChanged(win: ?*GLFWwindow, x_pos: i32, y_pos: i32) callconv(.C) void {
-        const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
-        ui.x = x_pos;
-        ui.y = y_pos;
+        const ui = getUserPointer(win);
+
+        ui.window_position_x = x_pos;
+        ui.window_position_y = y_pos;
     }
 
     fn onCursorPositionChanged(win: ?*GLFWwindow, x_pos: f64, y_pos: f64) callconv(.C) void {
@@ -239,32 +263,58 @@ pub const UserInterface = struct {
             return;
         }
 
-        const x = @floatToInt(u16, x_pos);
-        const y = @floatToInt(u16, y_pos);
+        const ui = getUserPointer(win);
 
-        const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+        ui.cursor_x = @floatToInt(u16, x_pos);
+        ui.cursor_y = @floatToInt(u16, y_pos);
+
+        ui.input_handled = false;
+
+        // check cached widgets
         if (ui.widget_with_mouse) |wwm| {
-            wwm.onDrag(ui, x, y);
+            // pass cursor position changed event down
+            // TODO: pass down signed cursor position for off window dragging
+            wwm.onDrag(ui, ui.cursor_x, ui.cursor_y);
         } else if (ui.widget_with_cursor) |wwc| {
-            if (wwc.containsPoint(ui, x, y)) {
-                // animations here
-            } else {
+            if (!wwc.containsPoint(ui, ui.cursor_x, ui.cursor_y)) {
                 wwc.onCursorLeave(ui);
-                ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
-                if (ui.widget_with_cursor) |new_w| {
-                    new_w.onCursorEnter(ui, x, y);
-                }
-            }
-        } else {
-            ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
-            if (ui.widget_with_cursor) |new_w| {
-                new_w.onCursorEnter(ui, x, y);
             }
         }
+
+        if (!ui.input_handled) {
+            var widgets = ui.root_widgets.iterator(0);
+            while (widgets.next()) |w| {
+                // pass cursor position changed logic down
+                w.*.onCursorPositionChanged(ui);
+                if (ui.input_handled) {
+                    break;
+                }
+            }
+        }
+
+        // if (ui.widget_with_mouse) |wwm| {
+        //     wwm.onDrag(ui, x, y);
+        // } else if (ui.widget_with_cursor) |wwc| {
+        //     if (wwc.containsPoint(ui, x, y)) {
+        //         // animations here
+        //     } else {
+        //         wwc.onCursorLeave(ui);
+        //         ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
+        //         if (ui.widget_with_cursor) |new_w| {
+        //             new_w.onCursorEnter(ui, x, y);
+        //         }
+        //     }
+        // } else {
+        //     ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
+        //     if (ui.widget_with_cursor) |new_w| {
+        //         new_w.onCursorEnter(ui, x, y);
+        //     }
+        // }
     }
 
     inline fn findWidgetWithCursor(self: *Self, x: u16, y: u16) ?*Widget {
-        for (self.widgets) |*w| {
+        var widget = self.widgets.iterator(0);
+        while (widget.next()) |w| {
             if (w.containsPoint(self, x, y)) {
                 return w;
             }
@@ -274,7 +324,8 @@ pub const UserInterface = struct {
     }
 
     fn onKeyEvent(win: ?*GLFWwindow, key: c_int, scan_code: c_int, action: c_int, modifiers: c_int) callconv(.C) void {
-        const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+        const ui = getUserPointer(win);
+
         if (key == GLFW_KEY_ESCAPE and action == GLFW_RELEASE) {
             glfwSetWindowShouldClose(win, GL_TRUE);
         } else if (key == GLFW_KEY_C and action != GLFW_RELEASE and modifiers == (GLFW_MOD_CONTROL | GLFW_MOD_SHIFT)) {
@@ -296,8 +347,8 @@ pub const UserInterface = struct {
             glfwSetWindowPos(win, new_x, new_y);
         } else if (key == GLFW_KEY_S and action != GLFW_RELEASE and modifiers == GLFW_MOD_CONTROL) {
             // TODO: don't use magic number for SearchBar index
-            if (ui.widget_with_focus != &ui.widgets[2]) {
-                ui.widget_with_focus = &ui.widgets[2];
+            if (ui.widget_with_focus != ui.widgets.uncheckedAt(WidgetIndex.SearchBar)) {
+                ui.widget_with_focus = ui.widgets.uncheckedAt(WidgetIndex.SearchBar);
                 ui.widget_with_focus.?.onFocus(ui);
             }
         } else {
@@ -315,7 +366,7 @@ pub const UserInterface = struct {
     }
 
     fn onCharacterEvent(win: ?*GLFWwindow, codepoint: u32) callconv(.C) void {
-        const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+        const ui = getUserPointer(win);
 
         if (ui.widget_with_focus) |wwf| {
             wwf.onCharacterEvent(ui, codepoint);
@@ -334,7 +385,8 @@ pub const UserInterface = struct {
         const x = @floatToInt(u16, xpos);
         const y = @floatToInt(u16, ypos);
 
-        const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+        const ui = getUserPointer(win);
+
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             switch (action) {
                 GLFW_PRESS => {
@@ -367,7 +419,8 @@ pub const UserInterface = struct {
     }
 
     fn onDrop(win: ?*GLFWwindow, count: c_int, paths: [*c][*c]const u8) callconv(.C) void {
-        const ui = @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(win)));
+        const ui = getUserPointer(win);
+
         var i: usize = 0;
         while (i < count) : (i += 1) {
             warn("file: {s}\n", .{paths[i]});
@@ -382,5 +435,13 @@ pub const UserInterface = struct {
                 w.animate(self, time_delta);
             }
         }
+    }
+
+    inline fn getUserPointer(window: ?*GLFWwindow) *Self {
+        return @ptrCast(*Self, @alignCast(@alignOf(Self), glfwGetWindowUserPointer(window)));
+    }
+
+    pub inline fn widgetAt(self: *Self, index: usize) *Widget {
+        return self.widgets.uncheckedAt(index);
     }
 };
