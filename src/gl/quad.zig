@@ -30,15 +30,15 @@ pub const Quad = packed struct {
         };
     }
 
-    pub inline fn contains(self: *Self, x: u16, y: u16) bool {
-        return (x >= self.transform.x) and (x <= self.transform.x + self.transform.width) and (y >= self.transform.y) and (y <= self.transform.y + self.transform.height);
+    pub inline fn contains(self: *Self, x: i32, y: i32) bool {
+        return self.containsX(x) and self.containsY(y);
     }
 
-    pub inline fn containsX(self: *Self, x: u16) bool {
-        return (x >= self.transform.x) and (x <= self.transform.x + self.transform.width);
+    pub inline fn containsX(self: *Self, x: i32) bool {
+        return (x >= @as(i32, self.transform.x)) and (x < @as(i32, self.transform.x + self.transform.width));
     }
 
-    pub inline fn containsY(self: *Self, y: u16) bool {
-        return (y >= self.transform.y) and (y <= self.transform.y + self.transform.height);
+    pub inline fn containsY(self: *Self, y: i32) bool {
+        return (y >= @as(i32, self.transform.y)) and (y < @as(i32, self.transform.y + self.transform.height));
     }
 };
