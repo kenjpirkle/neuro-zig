@@ -6,9 +6,11 @@ const TitleBar = @import("title_bar.zig").TitleBar;
 const QuadTransform = @import("../gl/quad_transform.zig").QuadTransform;
 const QuadColourIndices = @import("../gl/quad_colour_indices.zig").QuadColourIndices;
 const Colour = @import("../gl/colour.zig").Colour;
+const Colours = @import("widget_colours.zig");
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 const Index = @import("../buffer_indices.zig").TitleBar.MinimizeButton;
 usingnamespace @import("../gl/quad.zig");
+usingnamespace @import("../c.zig");
 
 pub const MinimizeButton = struct {
     const Self = @This();
@@ -44,9 +46,9 @@ pub const MinimizeButton = struct {
         Index.Icon.Colour = Index.Body.Colour + 1;
         ui.quad_shader.colour_data.append(&[_]Colour{
             // body
-            Colour.fromRgbaInt(120, 120, 120, 0),
+            Colours.TitleBar.MinimizeButton.Body.Default,
             // icon
-            Colour.fromRgbaInt(255, 255, 255, 125),
+            Colours.TitleBar.MinimizeButton.Icon.Default,
         });
         Index.Body.ColourIndices = ui.quad_shader.colour_index_data.data.len;
         Index.Icon.ColourIndices = Index.Body.ColourIndices + 1;
@@ -69,31 +71,46 @@ pub const MinimizeButton = struct {
     }
 
     pub fn onCursorEnter(self: *Self, ui: *UserInterface) void {
-        ui.colourAt(Index.Body.Colour).alpha = Colour.intVal(80);
+        if (ui.mouse_state.button == GLFW_MOUSE_BUTTON_LEFT and ui.mouse_state.action == GLFW_PRESS) {
+            ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MinimizeButton.Body.Pressed.alpha;
+            ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MinimizeButton.Icon.Pressed.alpha;
+        } else {
+            ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MinimizeButton.Body.Hover.alpha;
+            ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MinimizeButton.Icon.Hover.alpha;
+        }
         ui.widget_with_cursor = Widget.fromChild(self);
         ui.draw_required = true;
         ui.input_handled = true;
     }
 
     pub fn onCursorLeave(self: *Self, ui: *UserInterface) void {
-        ui.colourAt(Index.Body.Colour).alpha = Colour.intVal(0);
+        ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MinimizeButton.Body.Default.alpha;
+        ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MinimizeButton.Icon.Default.alpha;
         ui.widget_with_cursor = null;
         ui.draw_required = true;
     }
 
-    pub fn onLeftMouseDown(self: *Self) void {}
+    pub fn onLeftMouseDown(self: *Self, ui: *UserInterface) void {
+        ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MinimizeButton.Body.Pressed.alpha;
+        ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MinimizeButton.Icon.Pressed.alpha;
+        ui.draw_required = true;
+        ui.input_handled = true;
+    }
 
-    pub fn onFocus(self: *Self) void {}
+    pub fn onLeftMouseUp(self: *Self, ui: *UserInterface) void {
+        ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MinimizeButton.Body.Default.alpha;
+        ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MinimizeButton.Icon.Default.alpha;
+        glfwIconifyWindow(ui.window);
+        ui.widget_with_cursor = null;
+        ui.input_handled = true;
+    }
 
-    pub fn onUnfocus(self: *Self) void {}
+    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
+        ui.quadAt(Index.Body.Quad).transform.x = ui.width - (TitleBar.button_width * 3);
+        ui.quadAt(Index.Icon.Quad).transform.x = ui.width - (TitleBar.button_width * 3) + (@divTrunc(TitleBar.button_width, 2) - @divTrunc(icon_width, 2));
+    }
 
-    pub fn onKeyEvent(self: *Self, widget: *Widget, ui: *UserInterface) void {}
-
-    pub fn onCharacterEvent(self: *Self, widget: *Widget, ui: *UserInterface, codepoint: u32) void {}
-
-    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {}
-
-    pub fn containsPoint(self: *Self, x: u16, y: u16) bool {
-        return false;
+    pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
+        return ui.quadAt(Index.Body.Quad).contains(ui.cursor_x, ui.cursor_y);
     }
 };
