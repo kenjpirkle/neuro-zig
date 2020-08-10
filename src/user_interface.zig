@@ -24,6 +24,12 @@ pub fn checkOpenGLError() bool {
     return found_error;
 }
 
+pub const MouseState = struct {
+    button: c_int,
+    action: c_int,
+    modifiers: c_int,
+};
+
 pub const KeyboardState = struct {
     key: c_int,
     scan_code: c_int,
@@ -36,14 +42,15 @@ pub const UserInterface = struct {
 
     window: *GLFWwindow,
     keyboard_state: KeyboardState,
+    mouse_state: MouseState,
     width: u16,
     height: u16,
     window_position_x: i32,
     window_position_y: i32,
     video_mode: *const GLFWvidmode,
     cursor: ?*GLFWcursor,
-    cursor_x: u16,
-    cursor_y: u16,
+    cursor_x: i32,
+    cursor_y: i32,
     quad_shader: QuadShader,
     widget_with_cursor: ?*Widget,
     widget_with_focus: ?*Widget,
@@ -210,6 +217,7 @@ pub const UserInterface = struct {
         _ = glfwSetWindowPosCallback(self.window, onWindowPosChanged);
         _ = glfwSetMouseButtonCallback(self.window, onMouseButtonEvent);
         _ = glfwSetCursorPosCallback(self.window, onCursorPositionChanged);
+        _ = glfwSetCursorEnterCallback(self.window, onCursorEnterWindow);
         _ = glfwSetKeyCallback(self.window, onKeyEvent);
         _ = glfwSetCharCallback(self.window, onCharacterEvent);
         _ = glfwSetDropCallback(self.window, onDrop);
@@ -259,14 +267,10 @@ pub const UserInterface = struct {
     }
 
     fn onCursorPositionChanged(win: ?*GLFWwindow, x_pos: f64, y_pos: f64) callconv(.C) void {
-        if (x_pos < 0.0 or y_pos < 0.0) {
-            return;
-        }
-
         const ui = getUserPointer(win);
 
-        ui.cursor_x = @floatToInt(u16, x_pos);
-        ui.cursor_y = @floatToInt(u16, y_pos);
+        ui.cursor_x = @floatToInt(i32, x_pos);
+        ui.cursor_y = @floatToInt(i32, y_pos);
 
         ui.input_handled = false;
 
@@ -274,10 +278,12 @@ pub const UserInterface = struct {
         if (ui.widget_with_mouse) |wwm| {
             // pass cursor position changed event down
             // TODO: pass down signed cursor position for off window dragging
-            wwm.onDrag(ui, ui.cursor_x, ui.cursor_y);
-        } else if (ui.widget_with_cursor) |wwc| {
-            if (!wwc.containsPoint(ui, ui.cursor_x, ui.cursor_y)) {
-                wwc.onCursorLeave(ui);
+            wwm.onDrag(ui);
+        } else if (ui.cursor_x >= 0 or ui.cursor_y >= 0) {
+            if (ui.widget_with_cursor) |wwc| {
+                if (!wwc.containsPoint(ui)) {
+                    wwc.onCursorLeave(ui);
+                }
             }
         }
 
@@ -291,25 +297,22 @@ pub const UserInterface = struct {
                 }
             }
         }
+    }
 
-        // if (ui.widget_with_mouse) |wwm| {
-        //     wwm.onDrag(ui, x, y);
-        // } else if (ui.widget_with_cursor) |wwc| {
-        //     if (wwc.containsPoint(ui, x, y)) {
-        //         // animations here
-        //     } else {
-        //         wwc.onCursorLeave(ui);
-        //         ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
-        //         if (ui.widget_with_cursor) |new_w| {
-        //             new_w.onCursorEnter(ui, x, y);
-        //         }
-        //     }
-        // } else {
-        //     ui.widget_with_cursor = ui.findWidgetWithCursor(x, y);
-        //     if (ui.widget_with_cursor) |new_w| {
-        //         new_w.onCursorEnter(ui, x, y);
-        //     }
-        // }
+    fn onCursorEnterWindow(win: ?*GLFWwindow, entered: c_int) callconv(.C) void {
+        if (entered == GLFW_TRUE) {
+            return;
+        }
+
+        const ui = getUserPointer(win);
+
+        ui.input_handled = false;
+
+        if (ui.widget_with_mouse) |wwm| {
+            wwm.onDrag(ui);
+        } else if (ui.widget_with_cursor) |wwc| {
+            wwc.onCursorLeave(ui);
+        }
     }
 
     inline fn findWidgetWithCursor(self: *Self, x: u16, y: u16) ?*Widget {
@@ -387,6 +390,12 @@ pub const UserInterface = struct {
 
         const ui = getUserPointer(win);
 
+        ui.mouse_state = .{
+            .button = button,
+            .action = action,
+            .modifiers = modifiers,
+        };
+
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             switch (action) {
                 GLFW_PRESS => {
@@ -396,10 +405,10 @@ pub const UserInterface = struct {
                                 wwf.onUnfocus(ui);
                             }
 
-                            wwc.onLeftMouseDown(ui, x, y);
+                            wwc.onLeftMouseDown(ui);
                         } else {
                             // this needs to be more generic
-                            wwc.onLeftMouseDown(ui, x, y);
+                            wwc.onLeftMouseDown(ui);
                             // the widget type itself needs to handle this logic
                             ui.widget_with_focus = ui.widget_with_cursor;
                         }
@@ -409,8 +418,8 @@ pub const UserInterface = struct {
                     }
                 },
                 GLFW_RELEASE => {
-                    if (ui.widget_with_mouse) |wwm| {
-                        wwm.onLeftMouseUp(ui, x, y);
+                    if (ui.widget_with_cursor) |wwc| {
+                        wwc.onLeftMouseUp(ui);
                     }
                 },
                 else => {},
