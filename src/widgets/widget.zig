@@ -54,7 +54,6 @@ pub const Widget = union(enum) {
 
     pub fn onCursorEnter(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .TitleBar => |*t| t.onCursorEnter(ui),
             .MinimizeButton => |*m| m.onCursorEnter(ui),
             .MaximizeRestoreButton => |*m| m.onCursorEnter(ui),
             .CloseButton => |*c| c.onCursorEnter(ui),
