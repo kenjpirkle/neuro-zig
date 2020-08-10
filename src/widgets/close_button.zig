@@ -7,8 +7,10 @@ const Quad = @import("../gl/quad.zig").Quad;
 const QuadTransform = @import("../gl/quad_transform.zig").QuadTransform;
 const QuadColourIndices = @import("../gl/quad_colour_indices.zig").QuadColourIndices;
 const Colour = @import("../gl/colour.zig").Colour;
+const Colours = @import("widget_colours.zig");
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 const Index = @import("../buffer_indices.zig").TitleBar.CloseButton;
+usingnamespace @import("../c.zig");
 
 pub const CloseButton = struct {
     const Self = @This();
@@ -18,25 +20,18 @@ pub const CloseButton = struct {
     pub fn insertIntoUi(self: *Self, ui: *UserInterface) !void {
         Index.Quad = ui.quad_shader.quad_data.data.len;
         ui.quad_shader.quad_data.append(&[_]Quad{
-            .{
-                .transform = .{
-                    .x = ui.width - TitleBar.button_width,
-                    .y = 0,
-                    .width = TitleBar.button_width,
-                    .height = TitleBar.titlebar_height,
-                },
+            Quad.make(.{
+                .x = ui.width - TitleBar.button_width,
+                .y = 0,
+                .width = TitleBar.button_width,
+                .height = TitleBar.titlebar_height,
                 .layer = 3,
                 .character = 1,
-            },
+            }),
         });
         Index.Colour = @intCast(u8, ui.quad_shader.colour_data.data.len);
         ui.quad_shader.colour_data.append(&[_]Colour{
-            .{
-                .red = 1.0,
-                .green = 0.0,
-                .blue = 0.0,
-                .alpha = 1.0,
-            },
+            Colours.TitleBar.CloseButton.Body.Default,
         });
         Index.ColourIndices = ui.quad_shader.colour_index_data.data.len;
         ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
@@ -49,27 +44,41 @@ pub const CloseButton = struct {
         });
     }
 
-    pub fn onCursorEnter(self: *Self) void {}
-
-    pub fn onCursorLeave(self: *Self) void {}
-
-    pub fn onLeftMouseDown(self: *Self) void {}
-
-    pub fn onFocus(self: *Self) void {}
-
-    pub fn onUnfocus(self: *Self) void {}
-
-    pub fn onKeyEvent(self: *Self, widget: *Widget, ui: *UserInterface) void {}
-
-    pub fn onCharacterEvent(self: *Self, widget: *Widget, ui: *UserInterface, codepoint: u32) void {}
-
-    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
-        // const t = &ui.quad_shader.quad_data.data[Index.QuadId].transform;
-        // t.width = ui.width;
-        // t.height = ui.height;
+    pub fn onCursorEnter(self: *Self, ui: *UserInterface) void {
+        if (ui.mouse_state.button == GLFW_MOUSE_BUTTON_LEFT and ui.mouse_state.action == GLFW_PRESS) {
+            ui.colourAt(Index.Colour).alpha = Colours.TitleBar.CloseButton.Body.Pressed.alpha;
+        } else {
+            ui.colourAt(Index.Colour).alpha = Colours.TitleBar.CloseButton.Body.Hover.alpha;
+        }
+        ui.widget_with_cursor = Widget.fromChild(self);
+        ui.draw_required = true;
+        ui.input_handled = true;
     }
 
-    pub fn containsPoint(self: *Self, x: u16, y: u16) bool {
-        return false;
+    pub fn onCursorLeave(self: *Self, ui: *UserInterface) void {
+        ui.colourAt(Index.Colour).alpha = Colours.TitleBar.CloseButton.Body.Default.alpha;
+        ui.widget_with_cursor = null;
+        ui.draw_required = true;
+    }
+
+    pub fn onLeftMouseDown(self: *Self, ui: *UserInterface) void {
+        ui.colourAt(Index.Colour).alpha = Colours.TitleBar.CloseButton.Body.Pressed.alpha;
+        ui.draw_required = true;
+        ui.input_handled = true;
+    }
+
+    pub fn onLeftMouseUp(self: *Self, ui: *UserInterface) void {
+        ui.colourAt(Index.Colour).alpha = Colours.TitleBar.CloseButton.Body.Default.alpha;
+        glfwSetWindowShouldClose(ui.window, GLFW_TRUE);
+        ui.widget_with_cursor = null;
+        ui.input_handled = true;
+    }
+
+    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
+        ui.quadAt(Index.Quad).transform.x = ui.width - TitleBar.button_width;
+    }
+
+    pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
+        return ui.quadAt(Index.Quad).contains(ui.cursor_x, ui.cursor_y);
     }
 };
