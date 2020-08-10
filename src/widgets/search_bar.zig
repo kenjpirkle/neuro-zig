@@ -380,7 +380,7 @@ pub const SearchBar = packed struct {
     }
 
     pub fn onCursorPositionChanged(self: *Self, ui: *UserInterface) void {
-        if (self.containsPoint(ui, ui.cursor_x, ui.cursor_y)) {
+        if (self.containsPoint(ui)) {
             self.onCursorEnter(ui);
         }
     }
@@ -421,7 +421,7 @@ pub const SearchBar = packed struct {
         ui.draw_required = true;
     }
 
-    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface, x: u16, y: u16) void {
+    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface) void {
         if (!self.is_focused) {
             self.onFocus(widget, ui);
         }
@@ -538,8 +538,8 @@ pub const SearchBar = packed struct {
         ui.quadAt(Index.TextOverflow.Right.Quad).transform.x = ui.width - 160;
     }
 
-    pub fn containsPoint(self: *Self, ui: *UserInterface, x: u16, y: u16) bool {
-        return ui.quadAt(Index.Body.MainRect.Quad).contains(x, y);
+    pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
+        return ui.quadAt(Index.Body.MainRect.Quad).contains(ui.cursor_x, ui.cursor_y);
     }
 
     pub fn animate(self: *Self, widget: *Widget, ui: *UserInterface, time_delta: u64) void {
