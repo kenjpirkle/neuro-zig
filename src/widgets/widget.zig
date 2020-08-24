@@ -33,14 +33,14 @@ pub const Widget = union(enum) {
         return @ptrCast(*Widget, @alignCast(@alignOf(*Widget), widget_type));
     }
 
-    pub fn insertIntoUi(self: *Widget, ui: *UserInterface) !void {
+    pub fn init(self: *Widget, ui: *UserInterface) !void {
         try switch (self.*) {
-            .Background => |*b| b.insertIntoUi(ui),
-            .TitleBar => |*t| t.insertIntoUi(ui),
-            .MinimizeButton => |*m| m.insertIntoUi(ui),
-            .MaximizeRestoreButton => |*m| m.insertIntoUi(ui),
-            .CloseButton => |*c| c.insertIntoUi(ui),
-            .SearchBar => |*s| s.insertIntoUi(ui),
+            .Background => |*b| b.init(ui),
+            .TitleBar => |*t| t.init(ui),
+            .MinimizeButton => |*m| m.init(ui),
+            .MaximizeRestoreButton => |*m| m.init(ui),
+            .CloseButton => |*c| c.init(ui),
+            .SearchBar => |*s| s.init(ui),
         };
     }
 
@@ -131,11 +131,11 @@ pub const Widget = union(enum) {
     pub inline fn onWindowSizeChanged(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
             .Background => |*b| b.onWindowSizeChanged(ui),
+            .TitleBar => |*t| t.onWindowSizeChanged(ui),
             .MinimizeButton => |*m| m.onWindowSizeChanged(ui),
             .MaximizeRestoreButton => |*m| m.onWindowSizeChanged(ui),
             .CloseButton => |*c| c.onWindowSizeChanged(ui),
             .SearchBar => |*s| s.onWindowSizeChanged(ui),
-            else => {},
         }
     }
 
