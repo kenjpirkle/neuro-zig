@@ -1,145 +1,104 @@
 const warn = @import("std").debug.warn;
-const builtin = @import("std").builtin;
 const UserInterface = @import("../user_interface.zig").UserInterface;
 const Widget = @import("widget.zig").Widget;
 const TitleBar = @import("title_bar.zig").TitleBar;
-const QuadTransform = @import("../gl/quad_transform.zig").QuadTransform;
-const QuadColourIndices = @import("../gl/quad_colour_indices.zig").QuadColourIndices;
+const Rectangle = @import("../gl/rectangle.zig").Rectangle;
 const Colour = @import("../gl/colour.zig").Colour;
-const Colours = @import("widget_colours.zig");
+const Colours = @import("widget_colours.zig").TitleBar.MaximizeRestoreButton;
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
-const Index = @import("../buffer_indices.zig").TitleBar.MaximizeRestoreButton;
-usingnamespace @import("../gl/quad.zig");
+const element = @import("../widget_components.zig").TitleBar.MaximizeRestoreButton;
 usingnamespace @import("../c.zig");
 
 pub const MaximizeRestoreButton = struct {
     const Self = @This();
 
     const icon_width: u16 = @divTrunc(TitleBar.button_width, 4);
+    const icon_left: u16 = (TitleBar.button_width * 2) - @divTrunc(TitleBar.button_width, 2) + @divTrunc(icon_width, 2);
 
     parent: ?*Widget = null,
 
-    pub fn insertIntoUi(self: *Self, ui: *UserInterface) !void {
-        Index.Body.Quad = ui.quad_shader.quad_data.data.len;
-        Index.Icon.Top.Quad = Index.Body.Quad + 1;
-        Index.Icon.Left.Quad = Index.Icon.Top.Quad + 1;
-        Index.Icon.Right.Quad = Index.Icon.Left.Quad + 1;
-        Index.Icon.Bottom.Quad = Index.Icon.Right.Quad + 1;
-        ui.quad_shader.quad_data.append(&[_]Quad{
-            // body
-            Quad.make(.{
+    pub fn init(self: *Self, ui: *UserInterface) !void {
+        // Body
+        element.Body.colour_reference.init(ui, Colours.Body.Default);
+        element.Body.mesh.init(ui);
+        element.Body.mesh.setTransform(.{
+            .position = .{
                 .x = ui.width - (TitleBar.button_width * 2),
                 .y = 0,
-                .width = TitleBar.button_width,
-                .height = TitleBar.titlebar_height,
-                .layer = 3,
-                .character = 1,
-            }),
-            // icon
-            // top
-            Quad.make(.{
-                .x = ui.width - (TitleBar.button_width * 2) + (@divTrunc(TitleBar.button_width, 2) - @divTrunc(icon_width, 2)),
+            },
+            .width = TitleBar.button_width,
+            .height = TitleBar.titlebar_height,
+            .layer = 3,
+        });
+        element.Body.mesh.setSolidColour(element.Body.colour_reference);
+        element.Body.mesh.setMaterial(0);
+
+        // Icon
+        // Top
+        element.Icon.colour_reference.init(ui, Colours.Icon.Default);
+        element.Icon.Top.mesh.init(ui);
+        element.Icon.Top.mesh.setTransform(.{
+            .position = .{
+                .x = ui.width - icon_left,
                 .y = @divTrunc(TitleBar.titlebar_height, 2) - @divTrunc(icon_width, 2),
-                .width = icon_width,
-                .height = 1,
-                .layer = 4,
-                .character = 1,
-            }),
-            // left
-            Quad.make(.{
-                .x = ui.width - (TitleBar.button_width * 2) + (@divTrunc(TitleBar.button_width, 2) - @divTrunc(icon_width, 2)),
+            },
+            .width = icon_width,
+            .height = 1,
+            .layer = 4,
+        });
+        element.Icon.Top.mesh.setSolidColour(element.Icon.colour_reference);
+        element.Icon.Top.mesh.setMaterial(0);
+
+        // Left
+        element.Icon.Left.mesh.init(ui);
+        element.Icon.Left.mesh.setTransform(.{
+            .position = .{
+                .x = ui.width - icon_left,
                 .y = @divTrunc(TitleBar.titlebar_height, 2) - @divTrunc(icon_width, 2) + 1,
-                .width = 1,
-                .height = icon_width - 2,
-                .layer = 4,
-                .character = 1,
-            }),
-            // right
-            Quad.make(.{
-                .x = ui.width - (TitleBar.button_width * 2) + @divTrunc(TitleBar.button_width, 2) + @divTrunc(icon_width, 2),
+            },
+            .width = 1,
+            .height = icon_width - 2,
+            .layer = 4,
+        });
+        element.Icon.Left.mesh.setSolidColour(element.Icon.colour_reference);
+        element.Icon.Left.mesh.setMaterial(0);
+
+        // Right
+        element.Icon.Right.mesh.init(ui);
+        element.Icon.Right.mesh.setTransform(.{
+            .position = .{
+                .x = ui.width - icon_left + icon_width - 1,
                 .y = @divTrunc(TitleBar.titlebar_height, 2) - @divTrunc(icon_width, 2) + 1,
-                .width = 1,
-                .height = icon_width - 2,
-                .layer = 4,
-                .character = 1,
-            }),
-            // bottom
-            Quad.make(.{
-                .x = ui.width - (TitleBar.button_width * 2) + (@divTrunc(TitleBar.button_width, 2) - @divTrunc(icon_width, 2)),
+            },
+            .width = 1,
+            .height = icon_width - 2,
+            .layer = 4,
+        });
+        element.Icon.Right.mesh.setSolidColour(element.Icon.colour_reference);
+        element.Icon.Right.mesh.setMaterial(0);
+
+        // Bottom
+        element.Icon.Bottom.mesh.init(ui);
+        element.Icon.Bottom.mesh.setTransform(.{
+            .position = .{
+                .x = ui.width - icon_left,
                 .y = @divTrunc(TitleBar.titlebar_height, 2) + @divTrunc(icon_width, 2),
-                .width = icon_width,
-                .height = 1,
-                .layer = 4,
-                .character = 1,
-            }),
+            },
+            .width = icon_width,
+            .height = 1,
+            .layer = 4,
         });
-        Index.Body.Colour = @intCast(u8, ui.quad_shader.colour_data.data.len);
-        Index.Icon.Colour = Index.Body.Colour + 1;
-        ui.quad_shader.colour_data.append(&[_]Colour{
-            // body
-            Colour.fromRgbaInt(120, 120, 120, 0),
-            // icon
-            // top
-            Colour.fromRgbaInt(255, 255, 255, 125),
-            // left
-            Colour.fromRgbaInt(255, 255, 255, 125),
-            // right
-            Colour.fromRgbaInt(255, 255, 255, 125),
-            // bottom
-            Colour.fromRgbaInt(255, 255, 255, 125),
-        });
-        Index.Body.ColourIndices = ui.quad_shader.colour_index_data.data.len;
-        Index.Icon.Top.ColourIndices = Index.Body.ColourIndices + 1;
-        Index.Icon.Left.ColourIndices = Index.Icon.Top.ColourIndices + 1;
-        Index.Icon.Right.ColourIndices = Index.Icon.Left.ColourIndices + 1;
-        Index.Icon.Bottom.ColourIndices = Index.Icon.Right.ColourIndices + 1;
-        ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
-            // body
-            .{
-                .top_left = Index.Body.Colour,
-                .bottom_left = Index.Body.Colour,
-                .top_right = Index.Body.Colour,
-                .bottom_right = Index.Body.Colour,
-            },
-            // icon
-            // top
-            .{
-                .top_left = Index.Icon.Colour,
-                .bottom_left = Index.Icon.Colour,
-                .top_right = Index.Icon.Colour,
-                .bottom_right = Index.Icon.Colour,
-            },
-            // left
-            .{
-                .top_left = Index.Icon.Colour,
-                .bottom_left = Index.Icon.Colour,
-                .top_right = Index.Icon.Colour,
-                .bottom_right = Index.Icon.Colour,
-            },
-            // right
-            .{
-                .top_left = Index.Icon.Colour,
-                .bottom_left = Index.Icon.Colour,
-                .top_right = Index.Icon.Colour,
-                .bottom_right = Index.Icon.Colour,
-            },
-            // bottom
-            .{
-                .top_left = Index.Icon.Colour,
-                .bottom_left = Index.Icon.Colour,
-                .top_right = Index.Icon.Colour,
-                .bottom_right = Index.Icon.Colour,
-            },
-        });
+        element.Icon.Bottom.mesh.setSolidColour(element.Icon.colour_reference);
+        element.Icon.Bottom.mesh.setMaterial(0);
     }
 
     pub fn onCursorEnter(self: *Self, ui: *UserInterface) void {
         if (ui.mouse_state.button == GLFW_MOUSE_BUTTON_LEFT and ui.mouse_state.action == GLFW_PRESS) {
-            ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Body.Pressed.alpha;
-            ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Icon.Pressed.alpha;
+            element.Body.colour_reference.reference.alpha = Colours.Body.Pressed.alpha;
+            element.Icon.colour_reference.reference.alpha = Colours.Icon.Pressed.alpha;
         } else {
-            ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Body.Hover.alpha;
-            ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Icon.Hover.alpha;
+            element.Body.colour_reference.reference.alpha = Colours.Body.Hover.alpha;
+            element.Icon.colour_reference.reference.alpha = Colours.Icon.Hover.alpha;
         }
         ui.widget_with_cursor = Widget.fromChild(self);
         ui.draw_required = true;
@@ -147,22 +106,22 @@ pub const MaximizeRestoreButton = struct {
     }
 
     pub fn onCursorLeave(self: *Self, ui: *UserInterface) void {
-        ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Body.Default.alpha;
-        ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Icon.Default.alpha;
+        element.Body.colour_reference.reference.alpha = Colours.Body.Default.alpha;
+        element.Icon.colour_reference.reference.alpha = Colours.Icon.Default.alpha;
         ui.widget_with_cursor = null;
         ui.draw_required = true;
     }
 
     pub fn onLeftMouseDown(self: *Self, ui: *UserInterface) void {
-        ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Body.Pressed.alpha;
-        ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Icon.Pressed.alpha;
+        element.Body.colour_reference.reference.alpha = Colours.Body.Pressed.alpha;
+        element.Icon.colour_reference.reference.alpha = Colours.Icon.Pressed.alpha;
         ui.draw_required = true;
         ui.input_handled = true;
     }
 
     pub fn onLeftMouseUp(self: *Self, ui: *UserInterface) void {
-        ui.colourAt(Index.Body.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Body.Default.alpha;
-        ui.colourAt(Index.Icon.Colour).alpha = Colours.TitleBar.MaximizeRestoreButton.Icon.Default.alpha;
+        element.Body.colour_reference.reference.alpha = Colours.Body.Default.alpha;
+        element.Icon.colour_reference.reference.alpha = Colours.Icon.Default.alpha;
         const is_maximized = glfwGetWindowAttrib(ui.window, GLFW_MAXIMIZED);
         if (is_maximized == 0) {
             glfwMaximizeWindow(ui.window);
@@ -174,14 +133,14 @@ pub const MaximizeRestoreButton = struct {
     }
 
     pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
-        ui.quadAt(Index.Body.Quad).transform.x = ui.width - (TitleBar.button_width * 2);
-        ui.quadAt(Index.Icon.Top.Quad).transform.x = ui.width - (TitleBar.button_width * 2) + (@divTrunc(TitleBar.button_width, 2) - @divTrunc(icon_width, 2));
-        ui.quadAt(Index.Icon.Left.Quad).transform.x = ui.width - (TitleBar.button_width * 2) + (@divTrunc(TitleBar.button_width, 2) - @divTrunc(icon_width, 2));
-        ui.quadAt(Index.Icon.Right.Quad).transform.x = ui.width - (TitleBar.button_width * 2) + @divTrunc(TitleBar.button_width, 2) + @divTrunc(icon_width, 2);
-        ui.quadAt(Index.Icon.Bottom.Quad).transform.x = ui.width - (TitleBar.button_width * 2) + (@divTrunc(TitleBar.button_width, 2) - @divTrunc(icon_width, 2));
+        element.Body.mesh.translateX(ui.width - (TitleBar.button_width * 2));
+        element.Icon.Top.mesh.translateX(ui.width - icon_left);
+        element.Icon.Left.mesh.translateX(ui.width - icon_left);
+        element.Icon.Right.mesh.translateX(ui.width - icon_left + icon_width - 1);
+        element.Icon.Bottom.mesh.translateX(ui.width - icon_left);
     }
 
     pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
-        return ui.quadAt(Index.Body.Quad).contains(ui.cursor_x, ui.cursor_y);
+        return element.Body.mesh.contains(ui.cursor_x, ui.cursor_y);
     }
 };
