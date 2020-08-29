@@ -18,6 +18,7 @@ pub var app_widgets = [_]Widget{
 
 pub var root_app_widgets = [_]*Widget{
     &app_widgets[WidgetIndex.TitleBar],
+    &app_widgets[WidgetIndex.Background],
     &app_widgets[WidgetIndex.SearchBar],
 };
 
