@@ -4,10 +4,11 @@ const warn = std.debug.warn;
 const allocator = std.heap.c_allocator;
 const SegmentedList = std.SegmentedList;
 const Timer = std.time.Timer;
-const QuadShader = @import("shaders/quad_shader.zig").QuadShader;
+const DefaultShader = @import("shaders/default_shader.zig").DefaultShader;
+const Vertex = @import("gl/vertex.zig").Vertex;
+const ColourReference = @import("gl/colour_reference.zig").ColourReference;
 const Quad = @import("gl/quad.zig").Quad;
 const Colour = @import("gl/colour.zig").Colour;
-const QuadColourIndices = @import("gl/quad_colour_indices.zig").QuadColourIndices;
 const DrawArraysIndirectCommand = @import("gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 const Widget = @import("widgets/widget.zig").Widget;
 const WidgetIndex = @import("widgets/widget_index.zig");
@@ -51,7 +52,7 @@ pub const UserInterface = struct {
     cursor: ?*GLFWcursor,
     cursor_x: i32,
     cursor_y: i32,
-    quad_shader: QuadShader,
+    default_shader: DefaultShader,
     widget_with_cursor: ?*Widget,
     widget_with_focus: ?*Widget,
     widget_with_mouse: ?*Widget,
@@ -106,15 +107,15 @@ pub const UserInterface = struct {
             glDebugMessageCallback(debugMessageCallback, null);
         }
 
-        try self.quad_shader.init(self.width, self.height);
+        try self.default_shader.init(self.width, self.height);
         setGlState(self.width, self.height);
 
-        self.quad_shader.beginModify();
+        self.default_shader.beginModify();
         var widget = self.widgets.iterator(0);
         while (widget.next()) |w| {
-            try w.insertIntoUi(self);
+            try w.init(self);
         }
-        self.quad_shader.endModify();
+        self.default_shader.endModify();
     }
 
     pub fn deinit(self: *Self) void {
@@ -123,7 +124,7 @@ pub const UserInterface = struct {
         glfwTerminate();
         self.animating_widgets.deinit();
         self.widgets.deinit();
-        self.quad_shader.deinit();
+        self.default_shader.deinit();
     }
 
     pub fn start(self: *Self) void {
@@ -158,26 +159,37 @@ pub const UserInterface = struct {
 
     pub fn display(self: *Self) void {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        const count = @intCast(c_int, self.quad_shader.draw_command_data.data.len);
+        const count = @intCast(c_int, self.default_shader.draw_command_data.data.len);
         // FIXED GL_INVALID_OPERATION error generated. Bound draw indirect buffer is not large enough. BECAUSE THE SECOND ARGUMENT IN glMultiDrawArraysIndirect SHOULD BE 0 (null) AND NOT!!! THE ADDRESS OF THE MAPPED BUFFER
-        glMultiDrawArraysIndirect(GL_TRIANGLE_STRIP, null, count, 0);
+        glMultiDrawArraysIndirect(GL_TRIANGLES, null, count, 0);
         glfwSwapBuffers(self.window);
     }
 
-    pub inline fn quadAt(self: *Self, index: usize) *Quad {
-        return &self.quad_shader.quad_data.data[index];
+    pub inline fn allocVertices(self: *Self, count: usize) []Vertex {
+        const len = self.default_shader.vertex_data.data.len;
+        self.default_shader.vertex_data.data.len += count;
+        return self.default_shader.vertex_data.data[len .. len + count];
     }
 
-    pub inline fn colourAt(self: *Self, index: usize) *Colour {
-        return &self.quad_shader.colour_data.data[index];
+    pub inline fn allocLayer(self: *Self) *u16 {
+        const len = &self.default_shader.layer_data.data.len;
+        len.* += 1;
+        return &self.default_shader.layer_data.data[len.* - 1];
     }
 
-    pub inline fn quadColourIndicesAt(self: *Self, index: usize) *QuadColourIndices {
-        return &self.quad_shader.colour_index_data.data[index];
+    pub inline fn allocColour(self: *Self) ColourReference {
+        const len = &self.default_shader.colour_data.data.len;
+        len.* += 1;
+        return .{
+            .value = @intCast(u32, len.* - 1),
+            .reference = &self.default_shader.colour_data.data[len.* - 1],
+        };
     }
 
-    pub inline fn drawCommandAt(self: *Self, index: usize) *DrawArraysIndirectCommand {
-        return &self.quad_shader.draw_command_data.data[index];
+    pub inline fn allocDrawCommand(self: *Self) *DrawArraysIndirectCommand {
+        const len = &self.default_shader.draw_command_data.data.len;
+        len.* += 1;
+        return &self.default_shader.draw_command_data.data[len.* - 1];
     }
 
     inline fn setWindowHints() void {
@@ -185,10 +197,6 @@ pub const UserInterface = struct {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
-        glfwWindowHint(GLFW_RED_BITS, 16);
-        glfwWindowHint(GLFW_GREEN_BITS, 16);
-        glfwWindowHint(GLFW_BLUE_BITS, 16);
-        glfwWindowHint(GLFW_ALPHA_BITS, 16);
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
     }
 
@@ -248,13 +256,12 @@ pub const UserInterface = struct {
 
         ui.width = @intCast(u16, width);
         ui.height = @intCast(u16, height);
-        ui.quad_shader.updateWindowSize(ui.width, ui.height);
+        ui.default_shader.updateWindowSize(ui.width, ui.height);
         glViewport(0, 0, width, height);
 
-        // change this to tree navigation through the scene graph
-        var widget = ui.widgets.iterator(0);
+        var widget = ui.root_widgets.iterator(0);
         while (widget.next()) |w| {
-            w.onWindowSizeChanged(ui);
+            w.*.onWindowSizeChanged(ui);
         }
         ui.display();
     }
@@ -274,16 +281,11 @@ pub const UserInterface = struct {
 
         ui.input_handled = false;
 
-        // check cached widgets
         if (ui.widget_with_mouse) |wwm| {
-            // pass cursor position changed event down
-            // TODO: pass down signed cursor position for off window dragging
             wwm.onDrag(ui);
-        } else if (ui.cursor_x >= 0 or ui.cursor_y >= 0) {
-            if (ui.widget_with_cursor) |wwc| {
-                if (!wwc.containsPoint(ui)) {
-                    wwc.onCursorLeave(ui);
-                }
+        } else if (ui.widget_with_cursor) |wwc| {
+            if (!wwc.containsPoint(ui)) {
+                wwc.onCursorLeave(ui);
             }
         }
 
@@ -315,17 +317,6 @@ pub const UserInterface = struct {
         }
     }
 
-    inline fn findWidgetWithCursor(self: *Self, x: u16, y: u16) ?*Widget {
-        var widget = self.widgets.iterator(0);
-        while (widget.next()) |w| {
-            if (w.containsPoint(self, x, y)) {
-                return w;
-            }
-        }
-
-        return null;
-    }
-
     fn onKeyEvent(win: ?*GLFWwindow, key: c_int, scan_code: c_int, action: c_int, modifiers: c_int) callconv(.C) void {
         const ui = getUserPointer(win);
 
@@ -349,7 +340,6 @@ pub const UserInterface = struct {
 
             glfwSetWindowPos(win, new_x, new_y);
         } else if (key == GLFW_KEY_S and action != GLFW_RELEASE and modifiers == GLFW_MOD_CONTROL) {
-            // TODO: don't use magic number for SearchBar index
             if (ui.widget_with_focus != ui.widgets.uncheckedAt(WidgetIndex.SearchBar)) {
                 ui.widget_with_focus = ui.widgets.uncheckedAt(WidgetIndex.SearchBar);
                 ui.widget_with_focus.?.onFocus(ui);
@@ -371,30 +361,30 @@ pub const UserInterface = struct {
     fn onCharacterEvent(win: ?*GLFWwindow, codepoint: u32) callconv(.C) void {
         const ui = getUserPointer(win);
 
+        ui.input_handled = false;
+
         if (ui.widget_with_focus) |wwf| {
             wwf.onCharacterEvent(ui, codepoint);
         }
     }
 
     fn onMouseButtonEvent(win: ?*GLFWwindow, button: c_int, action: c_int, modifiers: c_int) callconv(.C) void {
-        var xpos: f64 = undefined;
-        var ypos: f64 = undefined;
-        glfwGetCursorPos(win, &xpos, &ypos);
-
-        if (xpos < 0.0 or ypos < 0.0) {
-            return;
-        }
-
-        const x = @floatToInt(u16, xpos);
-        const y = @floatToInt(u16, ypos);
+        var x_pos: f64 = undefined;
+        var y_pos: f64 = undefined;
+        glfwGetCursorPos(win, &x_pos, &y_pos);
 
         const ui = getUserPointer(win);
+
+        ui.cursor_x = @floatToInt(i32, x_pos);
+        ui.cursor_y = @floatToInt(i32, y_pos);
 
         ui.mouse_state = .{
             .button = button,
             .action = action,
             .modifiers = modifiers,
         };
+
+        ui.input_handled = false;
 
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             switch (action) {
@@ -414,7 +404,6 @@ pub const UserInterface = struct {
                         }
                     } else if (ui.widget_with_focus) |wwf| {
                         wwf.onUnfocus(ui);
-                        ui.widget_with_focus = null;
                     }
                 },
                 GLFW_RELEASE => {
@@ -433,6 +422,31 @@ pub const UserInterface = struct {
         var i: usize = 0;
         while (i < count) : (i += 1) {
             warn("file: {s}\n", .{paths[i]});
+        }
+    }
+
+    pub inline fn addAnimatingWidget(self: *Self, widget: *Widget) void {
+        var i: usize = 0;
+        while (i < self.animating_widgets.len) : (i += 1) {
+            var w = self.animating_widgets.uncheckedAt(i);
+            if (w.* == null) {
+                w.* = widget;
+                break;
+            }
+        } else {
+            var w = self.animating_widgets.addOne() catch unreachable;
+            w.* = widget;
+        }
+    }
+
+    pub inline fn removeAnimatingWidget(self: *Self, widget: *Widget) void {
+        var i: usize = 0;
+        while (i < self.animating_widgets.len) : (i += 1) {
+            var w = self.animating_widgets.uncheckedAt(i);
+            if (w.* == widget) {
+                w.* = null;
+                break;
+            }
         }
     }
 
