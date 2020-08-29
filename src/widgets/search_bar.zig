@@ -1,16 +1,14 @@
 const std = @import("std");
 const math = std.math;
 const warn = std.debug.warn;
-const builtin = std.builtin;
 const mem = std.mem;
 const UserInterface = @import("../user_interface.zig").UserInterface;
 const Widget = @import("widget.zig").Widget;
-const Quad = @import("../gl/quad.zig").Quad;
-const QuadTransform = @import("../gl/quad_transform.zig").QuadTransform;
-const QuadColourIndices = @import("../gl/quad_colour_indices.zig").QuadColourIndices;
+const Rectangle = @import("../gl/rectangle.zig").Rectangle;
 const Colour = @import("../gl/colour.zig").Colour;
+const Colours = @import("widget_colours.zig").SearchBar;
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
-const Index = @import("../buffer_indices.zig").SearchBar;
+const element = @import("../widget_components.zig").SearchBar;
 usingnamespace @import("../c.zig");
 
 pub const SearchBar = packed struct {
@@ -29,330 +27,225 @@ pub const SearchBar = packed struct {
     first_visible_char: u8 = 0,
     last_visible_char: u8 = 0,
     search_string_length: u8 = 0,
-    is_focused: bool = false,
     text_navigation_mode: bool = false,
     input_handled: bool = false,
 
-    pub fn insertIntoUi(self: *Self, ui: *UserInterface) !void {
-        var id = ui.quad_shader.quad_data.data.len;
-        Index.Body.MainRect.Quad = id;
-        Index.Body.Shadow.Quad = id + 1;
-        Index.Body.Highlight.Quad = id + 2;
-        Index.FocusHighlight.Top.Quad = id + 3;
-        Index.FocusHighlight.Bottom.Quad = id + 4;
-        Index.FocusHighlight.Left.Quad = id + 5;
-        Index.FocusHighlight.Right.Quad = id + 6;
-        ui.quad_shader.quad_data.append(&[_]Quad{
-            // main body
-            Quad.make(.{
+    pub fn init(self: *Self, ui: *UserInterface) !void {
+        element.Body.MainRect.colour_references[0].init(ui, Colours.MainRect.Top.Default);
+        element.Body.MainRect.colour_references[1].init(ui, Colours.MainRect.Bottom.Default);
+        element.Body.MainRect.mesh.init(ui);
+        element.Body.MainRect.mesh.setTransform(.{
+            .position = .{
                 .x = 20,
                 .y = 20 + offset_y,
-                .width = ui.width - 160,
-                .height = 34,
-                .layer = 2,
-                .character = 1,
-            }),
-            // main body shadow
-            Quad.make(.{
+            },
+            .width = ui.width - 160,
+            .height = 34,
+            .layer = 2,
+        });
+        element.Body.MainRect.mesh.setVerticalGradient(
+            element.Body.MainRect.colour_references[0],
+            element.Body.MainRect.colour_references[1],
+        );
+        element.Body.MainRect.mesh.setMaterial(0);
+
+        element.Body.Shadow.colour_references[0].init(ui, Colours.Shadow.Top.Default);
+        element.Body.Shadow.colour_references[1].init(ui, Colours.Shadow.Bottom.Default);
+        element.Body.Shadow.mesh.init(ui);
+        element.Body.Shadow.mesh.setTransform(.{
+            .position = .{
                 .x = 20,
                 .y = 20 + offset_y,
-                .width = ui.width - 160,
-                .height = 4,
-                .layer = 5,
-                .character = 0,
-            }),
-            // main body highlight
-            Quad.make(.{
+            },
+            .width = ui.width - 160,
+            .height = 3,
+            .layer = 5,
+        });
+        element.Body.Shadow.mesh.setVerticalGradient(
+            element.Body.Shadow.colour_references[0],
+            element.Body.Shadow.colour_references[1],
+        );
+        element.Body.Shadow.mesh.setMaterial(0);
+
+        element.Body.Highlight.colour_references[0].init(ui, Colours.Highlight.Top.Default);
+        element.Body.Highlight.colour_references[1].init(ui, Colours.Highlight.Bottom.Default);
+        element.Body.Highlight.mesh.init(ui);
+        element.Body.Highlight.mesh.setTransform(.{
+            .position = .{
                 .x = 21,
                 .y = 52 + offset_y,
-                .width = ui.width - 162,
-                .height = 2,
-                .layer = 5,
-                .character = 0,
-            }),
-            // focus highlight top
-            Quad.make(.{
+            },
+            .width = ui.width - 162,
+            .height = 2,
+            .layer = 5,
+        });
+        element.Body.Highlight.mesh.setVerticalGradient(
+            element.Body.Highlight.colour_references[0],
+            element.Body.Highlight.colour_references[1],
+        );
+        element.Body.Highlight.mesh.setMaterial(0);
+
+        element.FocusHighlight.colour_reference.init(ui, Colours.FocusHighlight.Default);
+        element.FocusHighlight.Top.mesh.init(ui);
+        element.FocusHighlight.Top.mesh.setTransform(.{
+            .position = .{
                 .x = 17,
                 .y = 18 + offset_y,
-                .width = ui.width - 155,
-                .height = 1,
-                .layer = 6,
-                .character = 0,
-            }),
-            // focus highlight bottom
-            Quad.make(.{
-                .x = 17,
-                .y = 55 + offset_y,
-                .width = ui.width - 155,
-                .height = 1,
-                .layer = 6,
-                .character = 0,
-            }),
-            // focus highlight left
-            Quad.make(.{
+            },
+            .width = ui.width - 155,
+            .height = 1,
+            .layer = 6,
+        });
+        element.FocusHighlight.Top.mesh.setSolidColour(element.FocusHighlight.colour_reference);
+        element.FocusHighlight.Top.mesh.setMaterial(0);
+
+        element.FocusHighlight.Left.mesh.init(ui);
+        element.FocusHighlight.Left.mesh.setTransform(.{
+            .position = .{
                 .x = 17,
                 .y = 19 + offset_y,
-                .width = 1,
-                .height = 36,
-                .layer = 6,
-                .character = 0,
-            }),
-            // focus highlight right
-            Quad.make(.{
+            },
+            .width = 1,
+            .height = 36,
+            .layer = 6,
+        });
+        element.FocusHighlight.Left.mesh.setSolidColour(element.FocusHighlight.colour_reference);
+        element.FocusHighlight.Left.mesh.setMaterial(0);
+
+        element.FocusHighlight.Right.mesh.init(ui);
+        element.FocusHighlight.Right.mesh.setTransform(.{
+            .position = .{
                 .x = ui.width - 139,
                 .y = 19 + offset_y,
-                .width = 1,
-                .height = 36,
-                .layer = 6,
-                .character = 0,
-            }),
+            },
+            .width = 1,
+            .height = 36,
+            .layer = 6,
         });
+        element.FocusHighlight.Right.mesh.setSolidColour(element.FocusHighlight.colour_reference);
+        element.FocusHighlight.Right.mesh.setMaterial(0);
 
-        Index.SearchText.PlaceholderText.Quad = ui.quad_shader.quad_data.data.len;
-        Index.SearchText.UserText.Quad = Index.SearchText.PlaceholderText.Quad + placeholder_text.len;
-        ui.quad_shader.quad_data.append(&[_]Quad{
-            // search text
-            Quad.make(.{
-                .x = 0,
-                .y = 0,
-                .width = 0,
-                .height = 0,
-                .layer = 3,
-                .character = 0,
-            }),
-        } ** 265);
+        element.FocusHighlight.Bottom.mesh.init(ui);
+        element.FocusHighlight.Bottom.mesh.setTransform(.{
+            .position = .{
+                .x = 17,
+                .y = 55 + offset_y,
+            },
+            .width = ui.width - 155,
+            .height = 1,
+            .layer = 6,
+        });
+        element.FocusHighlight.Bottom.mesh.setSolidColour(element.FocusHighlight.colour_reference);
+        element.FocusHighlight.Bottom.mesh.setMaterial(0);
 
-        id = ui.quad_shader.quad_data.data.len;
-        Index.TextOverflow.Left.Quad = id;
-        Index.TextOverflow.Right.Quad = id + 1;
-        Index.SelectionRect.Quad = id + 2;
-        Index.TextCursor.Quad = id + 3;
-        ui.quad_shader.quad_data.append(&[_]Quad{
-            // left text overflow
-            Quad.make(.{
+        element.SearchText.PlaceholderText.colour_reference.init(ui, Colours.PlaceholderText.Default);
+        {
+            var i: usize = 0;
+            while (i < placeholder_text.len) : (i += 1) {
+                element.SearchText.PlaceholderText.meshes[i].init(ui);
+                element.SearchText.PlaceholderText.meshes[i].setLayer(3);
+            }
+        }
+
+        element.SearchText.UserText.colour_reference.init(ui, Colours.UserText.Default);
+        {
+            var i: usize = 0;
+            while (i < 256) : (i += 1) {
+                element.SearchText.UserText.meshes[i].init(ui);
+                element.SearchText.UserText.meshes[i].setLayer(3);
+            }
+        }
+
+        element.TextOverflow.colour_references[0].init(ui, Colours.TextOverflow.Left.Top);
+        element.TextOverflow.colour_references[1].init(ui, Colours.TextOverflow.Left.Bottom);
+        element.TextOverflow.colour_references[2].init(ui, Colours.TextOverflow.Right.Top);
+        element.TextOverflow.colour_references[3].init(ui, Colours.TextOverflow.Right.Bottom);
+
+        element.TextOverflow.Left.mesh.init(ui);
+        element.TextOverflow.Left.mesh.setTransform(.{
+            .position = .{
                 .x = 20,
                 .y = 20 + offset_y,
-                .width = text_offset_x,
-                .height = 34,
-                .layer = 4,
-                .character = 0,
-            }),
-            // right text overflow
-            Quad.make(.{
+            },
+            .width = text_offset_x,
+            .height = 34,
+            .layer = 4,
+        });
+        element.TextOverflow.Left.mesh.setCornerGradient(
+            element.TextOverflow.colour_references[0],
+            element.TextOverflow.colour_references[1],
+            element.TextOverflow.colour_references[2],
+            element.TextOverflow.colour_references[3],
+        );
+        element.TextOverflow.Left.mesh.setMaterial(0);
+
+        element.TextOverflow.Right.mesh.init(ui);
+        element.TextOverflow.Right.mesh.setTransform(.{
+            .position = .{
                 .x = ui.width - 170,
                 .y = 20 + offset_y,
-                .width = text_offset_x,
-                .height = 34,
-                .layer = 4,
-                .character = 0,
-            }),
-            // selection rect
-            Quad.make(.{
+            },
+            .width = text_offset_x,
+            .height = 34,
+            .layer = 4,
+        });
+        element.TextOverflow.Right.mesh.setCornerGradient(
+            element.TextOverflow.colour_references[2],
+            element.TextOverflow.colour_references[3],
+            element.TextOverflow.colour_references[0],
+            element.TextOverflow.colour_references[1],
+        );
+        element.TextOverflow.Right.mesh.setMaterial(0);
+
+        element.SelectionRect.colour_reference.init(ui, Colours.SelectionRect.Default);
+        element.SelectionRect.mesh.init(ui);
+        element.SelectionRect.mesh.setTransform(.{
+            .position = .{
                 .x = text_offset_x,
-                .y = text_offset_y - @intCast(u16, ui.quad_shader.font.max_ascender),
-                .width = 0,
-                .height = @intCast(u16, ui.quad_shader.font.max_glyph_height),
-                .layer = 4,
-                .character = 0,
-            }),
-            // text cursor
-            Quad.make(.{
+                .y = text_offset_y - @intCast(u16, ui.default_shader.font.max_ascender),
+            },
+            .width = 0,
+            .height = @intCast(u16, ui.default_shader.font.max_glyph_height),
+            .layer = 4,
+        });
+        element.SelectionRect.mesh.setSolidColour(element.SelectionRect.colour_reference);
+        element.SelectionRect.mesh.setMaterial(0);
+
+        element.TextCursor.colour_reference.init(ui, Colours.TextCursor.Default);
+        element.TextCursor.mesh.init(ui);
+        element.TextCursor.mesh.setTransform(.{
+            .position = .{
                 .x = text_offset_x - 1,
-                .y = text_offset_y - @intCast(u16, ui.quad_shader.font.max_ascender),
-                .width = 2,
-                .height = @intCast(u16, ui.quad_shader.font.max_glyph_height),
-                .layer = 5,
-                .character = 0,
-            }),
+                .y = text_offset_y - @intCast(u16, ui.default_shader.font.max_ascender),
+            },
+            .width = 2,
+            .height = @intCast(u16, ui.default_shader.font.max_glyph_height),
+            .layer = 5,
         });
+        element.TextCursor.mesh.setSolidColour(element.TextCursor.colour_reference);
+        element.TextCursor.mesh.setMaterial(0);
 
-        const cid = @intCast(u8, ui.quad_shader.colour_data.data.len);
-        Index.Body.MainRect.Colours[0] = cid;
-        Index.Body.MainRect.Colours[1] = cid + 1;
-        Index.Body.Shadow.Colours[0] = cid + 2;
-        Index.Body.Shadow.Colours[1] = cid + 3;
-        Index.Body.Highlight.Colours[0] = cid + 4;
-        Index.Body.Highlight.Colours[1] = cid + 5;
-        Index.FocusHighlight.Colour = cid + 6;
-        Index.SearchText.PlaceholderText.Colour = cid + 7;
-        Index.SearchText.UserText.Colour = cid + 8;
-        Index.TextOverflow.Colours[0] = cid + 9;
-        Index.TextOverflow.Colours[1] = cid + 10;
-        Index.TextOverflow.Colours[2] = cid + 11;
-        Index.TextOverflow.Colours[3] = cid + 12;
-        Index.TextCursor.Colour = cid + 13;
-        Index.SelectionRect.Colour = cid + 14;
-        ui.quad_shader.colour_data.append(&[_]Colour{
-            // main body top
-            Colour.fromRgbaInt(47, 48, 59, 255),
-            // main body bottom
-            Colour.fromRgbaInt(52, 53, 64, 255),
-            // main body shadow top
-            Colour.fromRgbaInt(25, 25, 25, 250),
-            // main body shadow bottom
-            Colour.fromRgbaInt(25, 25, 25, 0),
-            // main body highlight top
-            Colour.fromRgbaInt(255, 255, 255, 0),
-            // main body highlight bottom
-            Colour.fromRgbaInt(255, 255, 255, 51),
-            // focus highlight
-            Colour.fromRgbaInt(50, 25, 255, 0),
-            // placeholder search text
-            Colour.fromRgbaInt(217, 217, 255, 120),
-            // user search text
-            Colour.fromRgbaInt(255, 255, 255, 80),
-            // left text overflow top
-            Colour.fromRgbaInt(47, 48, 59, 0),
-            // left text overflow bottom
-            Colour.fromRgbaInt(52, 53, 64, 0),
-            // right text overflow top
-            Colour.fromRgbaInt(47, 48, 59, 0),
-            // right text overflow bottom
-            Colour.fromRgbaInt(52, 53, 64, 0),
-            // text cursor
-            Colour.fromRgbaInt(50, 25, 255, 0),
-            // selection rect
-            Colour.fromRgbaInt(50, 50, 255, 0),
-        });
-
-        id = ui.quad_shader.colour_index_data.data.len;
-        Index.Body.MainRect.ColourIndices = id;
-        Index.Body.Shadow.ColourIndices = id + 1;
-        Index.Body.Highlight.ColourIndices = id + 2;
-        ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
-            .{
-                .top_left = Index.Body.MainRect.Colours[0],
-                .bottom_left = Index.Body.MainRect.Colours[1],
-                .top_right = Index.Body.MainRect.Colours[0],
-                .bottom_right = Index.Body.MainRect.Colours[1],
-            },
-            .{
-                .top_left = Index.Body.Shadow.Colours[0],
-                .bottom_left = Index.Body.Shadow.Colours[1],
-                .top_right = Index.Body.Shadow.Colours[0],
-                .bottom_right = Index.Body.Shadow.Colours[1],
-            },
-            .{
-                .top_left = Index.Body.Highlight.Colours[0],
-                .bottom_left = Index.Body.Highlight.Colours[1],
-                .top_right = Index.Body.Highlight.Colours[0],
-                .bottom_right = Index.Body.Highlight.Colours[1],
-            },
-        });
-
-        id = ui.quad_shader.colour_index_data.data.len;
-        Index.FocusHighlight.Top.ColourIndices = id;
-        Index.FocusHighlight.Bottom.ColourIndices = id + 1;
-        Index.FocusHighlight.Left.ColourIndices = id + 2;
-        Index.FocusHighlight.Right.ColourIndices = id + 3;
-        ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
-            .{
-                .top_left = Index.FocusHighlight.Colour,
-                .bottom_left = Index.FocusHighlight.Colour,
-                .top_right = Index.FocusHighlight.Colour,
-                .bottom_right = Index.FocusHighlight.Colour,
-            },
-            .{
-                .top_left = Index.FocusHighlight.Colour,
-                .bottom_left = Index.FocusHighlight.Colour,
-                .top_right = Index.FocusHighlight.Colour,
-                .bottom_right = Index.FocusHighlight.Colour,
-            },
-            .{
-                .top_left = Index.FocusHighlight.Colour,
-                .bottom_left = Index.FocusHighlight.Colour,
-                .top_right = Index.FocusHighlight.Colour,
-                .bottom_right = Index.FocusHighlight.Colour,
-            },
-            .{
-                .top_left = Index.FocusHighlight.Colour,
-                .bottom_left = Index.FocusHighlight.Colour,
-                .top_right = Index.FocusHighlight.Colour,
-                .bottom_right = Index.FocusHighlight.Colour,
-            },
-        });
-
-        Index.SearchText.PlaceholderText.ColourIndices = ui.quad_shader.colour_index_data.data.len;
-        var index: usize = 0;
-        while (index < placeholder_text.len) : (index += 1) {
-            ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
-                .{
-                    .top_left = Index.SearchText.PlaceholderText.Colour,
-                    .bottom_left = Index.SearchText.PlaceholderText.Colour,
-                    .top_right = Index.SearchText.PlaceholderText.Colour,
-                    .bottom_right = Index.SearchText.PlaceholderText.Colour,
-                },
-            });
-        }
-
-        Index.SearchText.UserText.ColourIndices = ui.quad_shader.colour_index_data.data.len;
-        index = 0;
-        while (index < 256) : (index += 1) {
-            ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
-                .{
-                    .top_left = Index.SearchText.UserText.Colour,
-                    .bottom_left = Index.SearchText.UserText.Colour,
-                    .top_right = Index.SearchText.UserText.Colour,
-                    .bottom_right = Index.SearchText.UserText.Colour,
-                },
-            });
-        }
-
-        id = ui.quad_shader.colour_index_data.data.len;
-        Index.TextOverflow.Left.ColourIndices = id;
-        Index.TextOverflow.Right.ColourIndices = id + 1;
-        Index.SelectionRect.ColourIndices = id + 2;
-        Index.TextCursor.ColourIndices = id + 3;
-        ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
-            .{
-                .top_left = Index.TextOverflow.Colours[0],
-                .bottom_left = Index.TextOverflow.Colours[1],
-                .top_right = Index.TextOverflow.Colours[2],
-                .bottom_right = Index.TextOverflow.Colours[3],
-            },
-            .{
-                .top_left = Index.TextOverflow.Colours[2],
-                .bottom_left = Index.TextOverflow.Colours[3],
-                .top_right = Index.TextOverflow.Colours[0],
-                .bottom_right = Index.TextOverflow.Colours[1],
-            },
-            .{
-                .top_left = Index.SelectionRect.Colour,
-                .bottom_left = Index.SelectionRect.Colour,
-                .top_right = Index.SelectionRect.Colour,
-                .bottom_right = Index.SelectionRect.Colour,
-            },
-            .{
-                .top_left = Index.TextCursor.Colour,
-                .bottom_left = Index.TextCursor.Colour,
-                .top_right = Index.TextCursor.Colour,
-                .bottom_right = Index.TextCursor.Colour,
-            },
-        });
-
-        Index.FocusHighlight.DrawCommand = ui.quad_shader.draw_command_data.data.len;
-        Index.SearchText.DrawCommand = Index.FocusHighlight.DrawCommand + 1;
-        Index.TextOverflow.DrawCommand = Index.SearchText.DrawCommand + 1;
-        ui.quad_shader.draw_command_data.append(&[_]DrawArraysIndirectCommand{
-            .{
-                .vertex_count = 4,
-                .instance_count = @intCast(c_uint, Index.SearchText.PlaceholderText.Quad),
-                .first_vertex = 0,
-                .base_instance = 0,
-            },
-            .{
-                .vertex_count = 4,
-                .instance_count = @intCast(c_uint, Index.TextOverflow.Left.Quad - Index.SearchText.PlaceholderText.Quad),
-                .first_vertex = 0,
-                .base_instance = @intCast(c_uint, Index.SearchText.PlaceholderText.Quad),
-            },
-            .{
-                .vertex_count = 4,
-                .instance_count = @intCast(c_uint, Index.TextCursor.Quad - Index.TextOverflow.Left.Quad + 1),
-                .first_vertex = 0,
-                .base_instance = @intCast(c_uint, Index.TextOverflow.Left.Quad),
-            },
-        });
+        element.FocusHighlight.draw_command = ui.allocDrawCommand();
+        element.FocusHighlight.draw_command.* = .{
+            .vertex_count = 6,
+            .instance_count = 19,
+            .first_vertex = 0,
+            .base_instance = 0,
+        };
+        element.SearchText.draw_command = ui.allocDrawCommand();
+        element.SearchText.draw_command.* = .{
+            .vertex_count = 6,
+            .instance_count = 265,
+            .first_vertex = 19 * 6,
+            .base_instance = 19,
+        };
+        element.TextOverflow.draw_command = ui.allocDrawCommand();
+        element.TextOverflow.draw_command.* = .{
+            .vertex_count = 6,
+            .instance_count = 4,
+            .first_vertex = (265 + 19) * 6,
+            .base_instance = 265,
+        };
 
         self.insertPlaceholderText(ui);
     }
@@ -360,20 +253,33 @@ pub const SearchBar = packed struct {
     fn insertPlaceholderText(self: *Self, ui: *UserInterface) void {
         var origin = text_offset_x;
         for (placeholder_text) |c, i| {
-            const glyph = &ui.quad_shader.font.glyphs[c];
+            const glyph = &ui.default_shader.font.glyphs[c];
             const glyph_width = glyph.x1 - glyph.x0;
             const glyph_height = glyph.y1 - glyph.y0;
             const bearing_x = glyph.x_off;
             const bearing_y = glyph.y_off;
-            const glyph_quad = ui.quadAt(Index.SearchText.PlaceholderText.Quad + i);
 
-            glyph_quad.transform = .{
-                .x = origin + @intCast(u16, bearing_x),
-                .y = text_offset_y - @intCast(u16, bearing_y),
+            const x = blk: {
+                if (bearing_x < 0) {
+                    break :blk origin - @intCast(u16, (math.absInt(bearing_x) catch unreachable));
+                } else {
+                    break :blk origin + @intCast(u16, bearing_x);
+                }
+            };
+            const y = text_offset_y - @intCast(u16, bearing_y);
+            const char = @intCast(u8, c);
+
+            element.SearchText.PlaceholderText.meshes[i].setTransform(.{
+                .position = .{
+                    .x = x,
+                    .y = y,
+                },
                 .width = @intCast(u16, glyph_width),
                 .height = @intCast(u16, glyph_height),
-            };
-            glyph_quad.character = @intCast(u8, c);
+                .layer = 3,
+            });
+            element.SearchText.PlaceholderText.meshes[i].setSolidColour(element.SearchText.PlaceholderText.colour_reference);
+            element.SearchText.PlaceholderText.meshes[i].setMaterial(char);
 
             origin += @intCast(u16, glyph.advance);
         }
@@ -386,14 +292,22 @@ pub const SearchBar = packed struct {
     }
 
     pub fn onCursorEnter(self: *Self, ui: *UserInterface) void {
-        if (self.is_focused == false) {
-            ui.colourAt(Index.Body.MainRect.Colours[0]).setRgbaInt(53, 54, 65, 255);
-            ui.colourAt(Index.Body.MainRect.Colours[1]).setRgbaInt(58, 59, 70, 255);
+        if (ui.widget_with_focus == Widget.fromChild(self)) {
+            element.Body.MainRect.colour_references[0].set(Colours.MainRect.Top.FocusedHover);
+            element.Body.MainRect.colour_references[1].setRgbaInt(58, 59, 70, 255);
 
-            ui.colourAt(Index.TextOverflow.Colours[0]).setRgbInt(53, 54, 65);
-            ui.colourAt(Index.TextOverflow.Colours[1]).setRgbInt(58, 59, 70);
-            ui.colourAt(Index.TextOverflow.Colours[2]).setRgbInt(53, 54, 65);
-            ui.colourAt(Index.TextOverflow.Colours[3]).setRgbInt(58, 59, 70);
+            element.TextOverflow.colour_references[0].setRgbInt(53, 54, 65);
+            element.TextOverflow.colour_references[1].setRgbInt(58, 59, 70);
+            element.TextOverflow.colour_references[2].setRgbInt(53, 54, 65);
+            element.TextOverflow.colour_references[3].setRgbInt(58, 59, 70);
+        } else {
+            element.Body.MainRect.colour_references[0].set(Colours.MainRect.Top.Hover);
+            element.Body.MainRect.colour_references[1].setRgbaInt(58, 59, 70, 255);
+
+            element.TextOverflow.colour_references[0].setRgbInt(53, 54, 65);
+            element.TextOverflow.colour_references[1].setRgbInt(58, 59, 70);
+            element.TextOverflow.colour_references[2].setRgbInt(53, 54, 65);
+            element.TextOverflow.colour_references[3].setRgbInt(58, 59, 70);
         }
 
         glfwDestroyCursor(ui.cursor);
@@ -405,24 +319,33 @@ pub const SearchBar = packed struct {
     }
 
     pub fn onCursorLeave(self: *Self, ui: *UserInterface) void {
-        if (self.is_focused == false) {
-            ui.colourAt(Index.Body.MainRect.Colours[0]).setRgbaInt(47, 48, 59, 255);
-            ui.colourAt(Index.Body.MainRect.Colours[1]).setRgbaInt(52, 53, 64, 255);
+        if (ui.widget_with_focus == Widget.fromChild(self)) {
+            element.Body.MainRect.colour_references[0].setRgbaInt(47, 48, 59, 255);
+            element.Body.MainRect.colour_references[1].setRgbaInt(52, 53, 64, 255);
 
-            ui.colourAt(Index.TextOverflow.Colours[0]).setRgbInt(47, 48, 59);
-            ui.colourAt(Index.TextOverflow.Colours[1]).setRgbInt(52, 53, 64);
-            ui.colourAt(Index.TextOverflow.Colours[2]).setRgbInt(47, 48, 59);
-            ui.colourAt(Index.TextOverflow.Colours[3]).setRgbInt(52, 53, 64);
+            element.TextOverflow.colour_references[0].setRgbInt(47, 48, 59);
+            element.TextOverflow.colour_references[1].setRgbInt(52, 53, 64);
+            element.TextOverflow.colour_references[2].setRgbInt(47, 48, 59);
+            element.TextOverflow.colour_references[3].setRgbInt(52, 53, 64);
+        } else {
+            element.Body.MainRect.colour_references[0].set(Colours.MainRect.Top.Default);
+            element.Body.MainRect.colour_references[1].set(Colours.MainRect.Bottom.Default);
+
+            element.TextOverflow.colour_references[0].set(Colours.TextOverflow.Left.Top);
+            element.TextOverflow.colour_references[1].set(Colours.TextOverflow.Left.Bottom);
+            element.TextOverflow.colour_references[2].set(Colours.TextOverflow.Right.Top);
+            element.TextOverflow.colour_references[3].set(Colours.TextOverflow.Right.Bottom);
         }
 
         glfwDestroyCursor(ui.cursor);
         ui.cursor = glfwCreateStandardCursor(GLFW_CURSOR_NORMAL);
         glfwSetCursor(ui.window, ui.cursor);
+        ui.widget_with_cursor = null;
         ui.draw_required = true;
     }
 
     pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface) void {
-        if (!self.is_focused) {
+        if (!(ui.widget_with_focus == Widget.fromChild(self))) {
             self.onFocus(widget, ui);
         }
 
@@ -430,53 +353,30 @@ pub const SearchBar = packed struct {
     }
 
     pub fn onFocus(self: *Self, widget: *Widget, ui: *UserInterface) void {
-        self.is_focused = true;
+        ui.widget_with_focus = Widget.fromChild(self);
 
-        ui.colourAt(Index.FocusHighlight.Colour).alpha = Colour.intVal(185);
-        ui.colourAt(Index.TextCursor.Colour).alpha = Colour.intVal(220);
+        element.FocusHighlight.colour_reference.reference.alpha = Colour.intVal(185);
+        element.TextCursor.colour_reference.reference.alpha = Colour.intVal(220);
 
         if (self.search_string_length == 0) {
-            ui.drawCommandAt(Index.SearchText.DrawCommand).instance_count = 0;
+            element.SearchText.draw_command.instance_count = 0;
         }
 
-        var i: usize = 0;
-        while (i < ui.animating_widgets.len) : (i += 1) {
-            var w = ui.animating_widgets.uncheckedAt(i);
-            if (w.* == null) {
-                // it is possible to retrieve the Widget union from the Widget type
-                // w.* = @ptrCast(*Widget, @alignCast(@alignOf(*Widget), self));
-                w.* = widget;
-                break;
-            }
-        } else {
-            var w = ui.animating_widgets.addOne() catch unreachable;
-            w.* = widget;
-        }
+        ui.addAnimatingWidget(widget);
 
         ui.animating = true;
         self.elapsed_ns = 0;
     }
 
     pub fn onUnfocus(self: *Self, widget: *Widget, ui: *UserInterface) void {
-        if (builtin.mode == .Debug) {
-            warn("SearchBar unfocus\n", .{});
-        }
+        ui.widget_with_focus = null;
 
-        self.is_focused = false;
+        element.Body.MainRect.colour_references[0].setRgbaInt(47, 48, 59, 255);
+        element.Body.MainRect.colour_references[1].setRgbaInt(52, 53, 64, 255);
+        element.FocusHighlight.colour_reference.reference.alpha = Colour.intVal(0);
+        element.TextCursor.colour_reference.reference.alpha = Colour.intVal(0);
 
-        ui.colourAt(Index.Body.MainRect.Colours[0]).setRgbaInt(47, 48, 59, 255);
-        ui.colourAt(Index.Body.MainRect.Colours[1]).setRgbaInt(52, 53, 64, 255);
-        ui.colourAt(Index.FocusHighlight.Colour).alpha = Colour.intVal(0);
-        ui.colourAt(Index.TextCursor.Colour).alpha = Colour.intVal(0);
-
-        var i: usize = 0;
-        while (i < ui.animating_widgets.len) : (i += 1) {
-            var w = ui.animating_widgets.uncheckedAt(i);
-            if (w.* == widget) {
-                w.* = null;
-                break;
-            }
-        }
+        ui.removeAnimatingWidget(widget);
 
         if (self.search_string_length == 0) {
             self.resetText(ui);
@@ -486,8 +386,6 @@ pub const SearchBar = packed struct {
     }
 
     pub fn onKeyEvent(self: *Self, widget: *Widget, ui: *UserInterface) void {
-        self.input_handled = false;
-
         const keys = &ui.keyboard_state;
         if (keys.action != GLFW_RELEASE) {
             if (keys.modifiers == GLFW_MOD_CONTROL) {
@@ -516,9 +414,9 @@ pub const SearchBar = packed struct {
     }
 
     pub fn onCharacterEvent(self: *Self, widget: *Widget, ui: *UserInterface, codepoint: u32) void {
-        if (!self.text_navigation_mode and !self.input_handled) {
+        if (!self.text_navigation_mode and !ui.input_handled) {
             if (self.search_string_length < search_text_limit) {
-                const new_char_index: u32 = @intCast(u32, math.min(self.search_string_length, self.cursor_position) + Index.SearchText.UserText.Quad);
+                const new_char_index: usize = math.min(self.search_string_length, self.cursor_position);
                 self.insertChar(ui, codepoint, new_char_index);
             }
 
@@ -527,19 +425,17 @@ pub const SearchBar = packed struct {
     }
 
     pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
-        ui.quadAt(Index.Body.MainRect.Quad).transform.width = ui.width - 160;
-        ui.quadAt(Index.Body.Shadow.Quad).transform.width = ui.width - 160;
-        ui.quadAt(Index.Body.Highlight.Quad).transform.width = ui.width - 162;
-
-        ui.quadAt(Index.FocusHighlight.Top.Quad).transform.width = ui.width - 155;
-        ui.quadAt(Index.FocusHighlight.Bottom.Quad).transform.width = ui.width - 155;
-        ui.quadAt(Index.FocusHighlight.Right.Quad).transform.x = ui.width - 139;
-
-        ui.quadAt(Index.TextOverflow.Right.Quad).transform.x = ui.width - 160;
+        element.Body.MainRect.mesh.setWidth(ui.width - 160);
+        element.Body.Shadow.mesh.setWidth(ui.width - 160);
+        element.Body.Highlight.mesh.setWidth(ui.width - 162);
+        element.FocusHighlight.Top.mesh.setWidth(ui.width - 155);
+        element.FocusHighlight.Bottom.mesh.setWidth(ui.width - 155);
+        element.FocusHighlight.Right.mesh.translateX(ui.width - 139);
+        element.TextOverflow.Right.mesh.translateX(ui.width - 160);
     }
 
     pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
-        return ui.quadAt(Index.Body.MainRect.Quad).contains(ui.cursor_x, ui.cursor_y);
+        return element.Body.MainRect.mesh.contains(ui.cursor_x, ui.cursor_y);
     }
 
     pub fn animate(self: *Self, widget: *Widget, ui: *UserInterface, time_delta: u64) void {
@@ -549,31 +445,32 @@ pub const SearchBar = packed struct {
         }
 
         const alpha: u8 = if (self.elapsed_ns <= (500 * 1000000)) 180 else 0;
-        ui.colourAt(Index.TextCursor.Colour).alpha = Colour.intVal(alpha);
+        element.TextCursor.colour_reference.reference.alpha = Colour.intVal(alpha);
         ui.animating = true;
     }
 
     inline fn moveCursor(self: *Self, ui: *UserInterface, advance: i32) void {
-        const x = &ui.quadAt(Index.TextCursor.Quad).transform.x;
-        x.* = @intCast(u16, @as(i17, x.*) + advance);
+        const x = @intCast(u32, @as(i33, element.TextCursor.mesh.originX()) + advance);
+        element.TextCursor.mesh.translateX(x);
     }
 
     inline fn resetText(self: *Self, ui: *UserInterface) void {
-        const d = ui.drawCommandAt(Index.SearchText.DrawCommand);
+        const d = element.SearchText.draw_command;
         d.instance_count = placeholder_text.len;
-        d.base_instance = @intCast(c_uint, Index.SearchText.PlaceholderText.Quad);
+        d.first_vertex = 19 * 6;
+        d.base_instance = 19;
     }
 
     inline fn updateText(self: *Self, ui: *UserInterface, text_length: u8) void {
-        const d = ui.drawCommandAt(Index.SearchText.DrawCommand);
+        const d = element.SearchText.draw_command;
         d.instance_count = text_length;
-        d.base_instance = @intCast(c_uint, Index.SearchText.UserText.Quad);
+        d.first_vertex = 28 * 6;
+        d.base_instance = 28;
     }
 
     inline fn insertChar(self: *Self, ui: *UserInterface, codepoint: u32, index: usize) void {
         const c = @intCast(u8, codepoint);
-        const q = &ui.quad_shader.quad_data;
-        const glyph = ui.quad_shader.font.glyphs[c];
+        const glyph = ui.default_shader.font.glyphs[c];
         const glyph_width = @intCast(u16, glyph.x1 - glyph.x0);
         const glyph_height = @intCast(u16, glyph.y1 - glyph.y0);
         const bearing_x = glyph.x_off;
@@ -582,17 +479,29 @@ pub const SearchBar = packed struct {
         const to_copy = self.search_string_length - self.cursor_position;
         var i: usize = index + to_copy;
         while (i > index) : (i -= 1) {
-            q.data[i] = q.data[i - 1];
-            q.data[i].transform.x += @intCast(u16, glyph.advance);
+            element.SearchText.UserText.meshes[i].clone(element.SearchText.UserText.meshes[i - 1]);
+            element.SearchText.UserText.meshes[i].translateXBy(@intCast(u16, glyph.advance));
         }
 
-        q.data[index].transform = .{
-            .x = @intCast(u16, @as(i33, self.cursor_text_origin) + bearing_x),
-            .y = @intCast(u16, @as(i33, text_offset_y) - bearing_y),
+        const x = blk: {
+            if (bearing_x < 0) {
+                break :blk self.cursor_text_origin - @intCast(u16, (math.absInt(bearing_x) catch unreachable));
+            } else {
+                break :blk self.cursor_text_origin + @intCast(u16, bearing_x);
+            }
+        };
+        const y = @intCast(u16, @as(i33, text_offset_y) - bearing_y);
+        element.SearchText.UserText.meshes[index].setTransform(.{
+            .position = .{
+                .x = x,
+                .y = y,
+            },
             .width = glyph_width,
             .height = glyph_height,
-        };
-        q.data[index].character = c;
+            .layer = 3,
+        });
+        element.SearchText.UserText.meshes[index].setSolidColour(element.SearchText.UserText.colour_reference);
+        element.SearchText.UserText.meshes[index].setMaterial(c);
 
         self.cursor_text_origin += @intCast(u16, glyph.advance);
         self.cursor_position += 1;
@@ -603,12 +512,10 @@ pub const SearchBar = packed struct {
     }
 
     inline fn onBackspace(self: *Self, ui: *UserInterface) void {
-        var q = &ui.quad_shader.quad_data;
-
         if (self.search_string_length > 0 and self.cursor_position > 0) {
-            const previous_character_quad_id = Index.SearchText.UserText.Quad + self.cursor_position - 1;
-            const previous_character = q.data[previous_character_quad_id].character;
-            const character_advance = ui.quad_shader.font.glyphs[previous_character].advance;
+            const prev_quad = element.SearchText.UserText.meshes[self.cursor_position - 1];
+            const prev_char = @intCast(u8, prev_quad.vertices[0].material);
+            const char_advance = ui.default_shader.font.glyphs[prev_char].advance;
             var num_to_delete: u8 = 1;
 
             // if (ui.keyboard_state.modifiers == GLFW_MOD_CONTROL) {
@@ -616,29 +523,28 @@ pub const SearchBar = packed struct {
             // }
 
             const to_copy = self.search_string_length - self.cursor_position;
-            const end_index = previous_character_quad_id + to_copy;
-            var i: usize = previous_character_quad_id;
-            while (i < end_index) : (i += 1) {
-                q.data[i] = q.data[i + 1];
-                q.data[i].transform.x -= @intCast(u16, character_advance);
+            var i: usize = 0;
+            while (i < to_copy) : (i += 1) {
+                var quad = element.SearchText.UserText.meshes[self.cursor_position + i - 1];
+                const next_quad = element.SearchText.UserText.meshes[self.cursor_position + i];
+                quad.clone(next_quad);
+                quad.translateX(quad.originX() - @intCast(u16, char_advance));
             }
 
-            self.cursor_text_origin -= @intCast(u16, character_advance);
+            self.cursor_text_origin -= @intCast(u16, char_advance);
             self.cursor_position -= 1;
             self.search_string_length -= 1;
 
-            self.moveCursor(ui, @bitCast(i32, -%character_advance));
+            self.moveCursor(ui, @bitCast(i32, -%char_advance));
             self.updateText(ui, self.search_string_length);
         }
     }
 
     inline fn onDelete(self: *Self, ui: *UserInterface) void {
-        var q = &ui.quad_shader.quad_data;
-
         if (self.search_string_length > 0 and self.cursor_position < self.search_string_length) {
-            const next_character_quad_id = Index.SearchText.UserText.Quad + self.cursor_position;
-            const next_character = q.data[next_character_quad_id].character;
-            const character_advance = ui.quad_shader.font.glyphs[next_character].advance;
+            var next_quad = element.SearchText.UserText.meshes[self.cursor_position];
+            const next_char = @intCast(u8, next_quad.vertices[0].material);
+            const char_advance = ui.default_shader.font.glyphs[next_char].advance;
             var num_to_delete: u8 = 1;
 
             // if (ui.keyboard_state.modifiers == GLFW_MOD_CONTROL) {
@@ -646,11 +552,12 @@ pub const SearchBar = packed struct {
             // }
 
             const to_copy = self.search_string_length - self.cursor_position - 1;
-            const end_index = next_character_quad_id + to_copy;
-            var i: usize = next_character_quad_id;
-            while (i < end_index) : (i += 1) {
-                q.data[i] = q.data[i + 1];
-                q.data[i].transform.x -= @intCast(u16, character_advance);
+            var i: usize = 0;
+            while (i < to_copy) : (i += 1) {
+                var quad = element.SearchText.UserText.meshes[self.cursor_position + i];
+                next_quad = element.SearchText.UserText.meshes[self.cursor_position + i + 1];
+                quad.clone(next_quad);
+                quad.translateX(quad.originX() - @intCast(u16, char_advance));
             }
 
             self.search_string_length -= 1;
@@ -660,43 +567,38 @@ pub const SearchBar = packed struct {
 
     inline fn onLeft(self: *Self, ui: *UserInterface) void {
         if (self.search_string_length > 0 and self.cursor_position > 0) {
-            const previous_character_quad_id = Index.SearchText.UserText.Quad + self.cursor_position - 1;
-            const previous_character = ui.quad_shader.quad_data.data[previous_character_quad_id].character;
-            const character_advance = ui.quad_shader.font.glyphs[previous_character].advance;
+            const prev_char = element.SearchText.UserText.meshes[self.cursor_position - 1].vertices[0].material;
+            const char_advance = ui.default_shader.font.glyphs[prev_char].advance;
 
-            const negative_advance = @intCast(i32, -%character_advance);
+            const negative_advance = @intCast(i32, -%char_advance);
             self.moveCursor(ui, negative_advance);
             self.cursor_position -= 1;
-            self.cursor_text_origin -= @intCast(u16, character_advance);
+            self.cursor_text_origin -= @intCast(u16, char_advance);
         }
     }
 
     inline fn onRight(self: *Self, ui: *UserInterface) void {
         if (self.search_string_length > 0 and self.cursor_position < self.search_string_length) {
-            const next_character_quad_id = Index.SearchText.UserText.Quad + self.cursor_position;
-            const next_character = ui.quad_shader.quad_data.data[next_character_quad_id].character;
-            const character_advance = ui.quad_shader.font.glyphs[next_character].advance;
+            const next_char = element.SearchText.UserText.meshes[self.cursor_position].vertices[0].material;
+            const char_advance = ui.default_shader.font.glyphs[next_char].advance;
 
-            self.moveCursor(ui, @intCast(i32, character_advance));
+            self.moveCursor(ui, @intCast(i32, char_advance));
             self.cursor_position += 1;
-            self.cursor_text_origin += @intCast(u16, character_advance);
+            self.cursor_text_origin += @intCast(u16, char_advance);
         }
     }
 
     inline fn onPaste(self: *Self, ui: *UserInterface) void {
-        const q = &ui.quad_shader.quad_data;
         const clipboard = glfwGetClipboardString(ui.window);
         if (clipboard[0] == 0) {
             return;
         }
 
         // copy all characters from cursor position to end
-        const end_quad_id: usize = Index.SearchText.UserText.Quad + 255;
-        var cursor_char_quad_id = Index.SearchText.UserText.Quad + self.cursor_position;
         const to_copy = self.search_string_length - self.cursor_position;
         var i: usize = 0;
         while (i < to_copy) : (i += 1) {
-            q.data[end_quad_id - i] = q.data[cursor_char_quad_id + to_copy - 1 - i];
+            element.SearchText.UserText.meshes[255 - i].clone(element.SearchText.UserText.meshes[self.cursor_position + to_copy - i - 1]);
         }
 
         const old_cursor_text_origin = self.cursor_text_origin;
@@ -706,19 +608,23 @@ pub const SearchBar = packed struct {
         i = 0;
         while (clipboard[i] != 0 and i < available_space) : (i += 1) {
             const c = @intCast(u8, clipboard[i]);
-            const glyph = ui.quad_shader.font.glyphs[c];
+            const glyph = ui.default_shader.font.glyphs[c];
             const glyph_width = @intCast(u16, glyph.x1 - glyph.x0);
             const glyph_height = @intCast(u16, glyph.y1 - glyph.y0);
             const bearing_x = glyph.x_off;
             const bearing_y = glyph.y_off;
 
-            q.data[cursor_char_quad_id + i].transform = .{
-                .x = @intCast(u16, @as(i33, self.cursor_text_origin) + bearing_x),
-                .y = @intCast(u16, @as(i33, text_offset_y) - bearing_y),
+            element.SearchText.UserText.meshes[self.cursor_position + i].setTransform(.{
+                .position = .{
+                    .x = @intCast(u16, @as(i33, self.cursor_text_origin) + bearing_x),
+                    .y = @intCast(u16, @as(i33, text_offset_y) - bearing_y),
+                },
                 .width = glyph_width,
                 .height = glyph_height,
-            };
-            q.data[cursor_char_quad_id + i].character = c;
+                .layer = 3,
+            });
+            element.SearchText.UserText.meshes[self.cursor_position + i].setSolidColour(element.SearchText.UserText.colour_reference);
+            element.SearchText.UserText.meshes[self.cursor_position + i].setMaterial(c);
 
             self.cursor_text_origin += @intCast(u16, glyph.advance);
             cursor_advance += @intCast(i32, glyph.advance);
@@ -729,12 +635,10 @@ pub const SearchBar = packed struct {
 
         // copy old characters back from end if required
         const new_offset = self.cursor_text_origin - old_cursor_text_origin;
-        cursor_char_quad_id = Index.SearchText.UserText.Quad + self.cursor_position;
         i = 0;
         while (i < to_copy) : (i += 1) {
-            const index = cursor_char_quad_id + i;
-            q.data[index] = q.data[end_quad_id - to_copy + 1 + i];
-            q.data[index].transform.x += new_offset;
+            element.SearchText.UserText.meshes[self.cursor_position + i].clone(element.SearchText.UserText.meshes[255 - to_copy + 1 - i]);
+            element.SearchText.UserText.meshes[self.cursor_position + i].translateXBy(new_offset);
         }
 
         self.moveCursor(ui, cursor_advance);
@@ -746,24 +650,24 @@ pub const SearchBar = packed struct {
             return;
         }
 
-        const q = &ui.quad_shader.quad_data.data[Index.SearchText.UserText.Quad + self.search_string_length - 1];
-
-        ui.quad_shader.quad_data.data[Index.SelectionRect.Quad].transform.width = q.transform.x + q.transform.width - text_offset_x;
-        ui.quad_shader.colour_data.data[Index.SelectionRect.Colour].alpha = 100.0 / 255.0;
+        const x = element.SearchText.UserText.meshes[self.search_string_length - 1].vertices[2].x;
+        element.SelectionRect.mesh.setWidth(x);
+        element.SelectionRect.colour_reference.reference.alpha = Colour.intVal(100);
     }
 
     inline fn calculateBackwardJump(self: *Self, ui: *UserInterface, index: u8, advance: *u16, num_chars: *u8) void {
-        var q = &ui.quad_shader.quad_data;
         var i: u8 = index;
-        if (q.data[i + 1].character == ' ') {
-            while (i >= Index.SearchText.UserText.Quad and q.data[i].character == ' ') {
-                advance.* += @intCast(u16, ui.quad_shader.font.glyphs[q.data[i].character].advance);
-                i -= 1;
+        if (element.SearchText.UserText.meshes[i + 1].vertices[0].material == ' ') {
+            while (i >= 0 and element.SearchText.UserText.meshes[i].vertices[0].material == ' ') : (i -= 1) {
+                const char = element.SearchText.UserText.meshes[i].vertices[0].material;
+                const char_advance = ui.default_shader.font.glyphs[char].advance;
+                advance.* += @intCast(u16, char_advance);
             }
         } else {
-            while (i >= Index.SearchText.UserText.Quad and q.data[i].character != ' ') {
-                advance.* += @intCast(u16, ui.quad_shader.font.glyphs[q.data[i].character].advance);
-                i -= 1;
+            while (i >= 0 and element.SearchText.UserText.meshes[i].vertices[0].material == ' ') : (i -= 1) {
+                const char = element.SearchText.UserText.meshes[i].vertices[0].material;
+                const char_advance = ui.default_shader.font.glyphs[char].advance;
+                advance.* += @intCast(u16, char_advance);
             }
         }
 
@@ -771,17 +675,18 @@ pub const SearchBar = packed struct {
     }
 
     inline fn calculateForwardJump(self: *Self, ui: *UserInterface, index: u8, advance: *u16, num_chars: *u8) void {
-        var q = &ui.quad_shader.quad_data;
         var i: usize = index;
-        if (q.data[i].character == ' ') {
-            while (i < Index.SearchText.UserText.QuadId + self.search_string_length and q.data[i].character == ' ') {
-                advance.* += ui.quad_shader.font.glyphs[q.data[i].character].advance;
-                i += 1;
+        if (element.SearchText.UserText.meshes[i].vertices[0].material == ' ') {
+            while (i < self.search_string_length and element.SearchText.UserText.meshes[i].vertices[0].material == ' ') : (i += 1) {
+                const char = element.SearchText.UserText.meshes[i].vertices[0].material;
+                const char_advance = ui.default_shader.font.glyphs[char].advance;
+                advance.* += @intCast(u16, char_advance);
             }
         } else {
-            while (i < Index.SearchText.UserText.QuadId + self.search_string_length and q.data[i].character != ' ') {
-                advance.* += ui.quad_shader.font.glyphs[q.data[i].character].advance;
-                i += 1;
+            while (i < self.search_string_length and element.SearchText.UserText.meshes[i].vertices[0].material == ' ') : (i += 1) {
+                const char = element.SearchText.UserText.meshes[i].vertices[0].material;
+                const char_advance = ui.default_shader.font.glyphs[char].advance;
+                advance.* += @intCast(u16, char_advance);
             }
         }
 
