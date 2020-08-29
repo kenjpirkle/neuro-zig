@@ -36,6 +36,22 @@ pub fn build(b: *Builder) void {
         "-DSQLITE_ENABLE_FTS5",
         "-O3",
     });
+    exe.addIncludeDir("deps/");
+    exe.addCSourceFile("deps/stb_image.c", &[_][]const u8{
+        "-Ideps/",
+        "-std=c17",
+        "-O3",
+    });
+    exe.addCSourceFile("deps/stb_image_write.c", &[_][]const u8{
+        "-Ideps/",
+        "-std=c17",
+        "-O3",
+    });
+    exe.addCSourceFile("deps/stb_truetype.c", &[_][]const u8{
+        "-Ideps/",
+        "-std=c17",
+        "-O3",
+    });
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
