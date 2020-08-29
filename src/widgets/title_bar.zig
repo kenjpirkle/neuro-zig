@@ -7,12 +7,10 @@ const UserInterface = @import("../user_interface.zig").UserInterface;
 const Widget = @import("widget.zig").Widget;
 const MinimizeButton = @import("minimize_button.zig").MinimizeButton;
 const MaximizeRestoreButton = @import("maximize_restore_button.zig").MaximizeRestoreButton;
-const Quad = @import("../gl/quad.zig").Quad;
-const QuadTransform = @import("../gl/quad_transform.zig").QuadTransform;
-const QuadColourIndices = @import("../gl/quad_colour_indices.zig").QuadColourIndices;
+const Rectangle = @import("../gl/rectangle.zig").Rectangle;
 const Colour = @import("../gl/colour.zig").Colour;
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
-const Index = @import("../buffer_indices.zig").TitleBar;
+const element = @import("../widget_components.zig").TitleBar;
 const WidgetIndex = @import("widget_index.zig");
 usingnamespace @import("../c.zig");
 
@@ -26,48 +24,36 @@ pub const TitleBar = packed struct {
     cursor_x: u16 = 0,
     cursor_y: u16 = 0,
 
-    pub fn insertIntoUi(self: *Self, ui: *UserInterface) !void {
-        Index.MainRect.Quad = ui.quad_shader.quad_data.data.len;
-        ui.quad_shader.quad_data.append(&[_]Quad{
-            Quad.make(.{
-                .x = 0,
-                .y = 0,
-                .width = ui.width - (button_width * 3),
-                .height = titlebar_height,
-                .layer = 2,
-                .character = 1,
-            }),
-        });
-        Index.MainRect.Colour = @intCast(u8, ui.quad_shader.colour_data.data.len);
-        ui.quad_shader.colour_data.append(&[_]Colour{
+    pub fn init(self: *Self, ui: *UserInterface) !void {
+        element.MainRect.colour_reference.init(
+            ui,
             Colour.fromRgbaInt(255, 255, 255, 0),
+        );
+
+        element.MainRect.mesh.init(ui);
+        element.MainRect.mesh.setTransform(.{
+            .position = .{ .x = 0, .y = 0 },
+            .width = ui.width - (button_width * 3),
+            .height = titlebar_height,
+            .layer = 2,
         });
-        Index.MainRect.ColourIndices = ui.quad_shader.colour_index_data.data.len;
-        ui.quad_shader.colour_index_data.append(&[_]QuadColourIndices{
-            .{
-                .top_left = Index.MainRect.Colour,
-                .bottom_left = Index.MainRect.Colour,
-                .top_right = Index.MainRect.Colour,
-                .bottom_right = Index.MainRect.Colour,
-            },
-        });
+        element.MainRect.mesh.setSolidColour(element.MainRect.colour_reference);
+        element.MainRect.mesh.setMaterial(0);
     }
 
     pub fn onCursorPositionChanged(self: *Self, ui: *UserInterface) void {
-        if (ui.quadAt(Index.MainRect.Quad).containsY(ui.cursor_y)) {
-            if (ui.quadAt(Index.MinimizeButton.Body.Quad).containsX(ui.cursor_x)) {
-                // cursor in MinimizeButton
-                ui.widgetAt(WidgetIndex.MinimizeButton).onCursorEnter(ui);
-            } else if (ui.quadAt(Index.MaximizeRestoreButton.Body.Quad).containsX(ui.cursor_x)) {
-                // cursor over MaximizeRestoreButton
-                ui.widgetAt(WidgetIndex.MaximizeRestoreButton).onCursorEnter(ui);
-            } else if (ui.quadAt(Index.CloseButton.Quad).containsX(ui.cursor_x)) {
-                // cursor over CloseButton
-                ui.widgetAt(WidgetIndex.CloseButton).onCursorEnter(ui);
-            } else {
-                // cursor over TitleBar body
+        const curx = ui.cursor_x;
+
+        if (ui.cursor_y >= 0 and ui.cursor_y < titlebar_height and curx >= 0) {
+            if (curx < element.MinimizeButton.Body.mesh.originX()) {
                 ui.widget_with_cursor = Widget.fromChild(self);
                 ui.input_handled = true;
+            } else if (curx < element.MaximizeRestoreButton.Body.mesh.originX()) {
+                ui.widgetAt(WidgetIndex.MinimizeButton).onCursorEnter(ui);
+            } else if (curx < element.CloseButton.Body.mesh.originX()) {
+                ui.widgetAt(WidgetIndex.MaximizeRestoreButton).onCursorEnter(ui);
+            } else if (curx < ui.width) {
+                ui.widgetAt(WidgetIndex.CloseButton).onCursorEnter(ui);
             }
         }
     }
@@ -93,7 +79,14 @@ pub const TitleBar = packed struct {
         ui.widget_with_mouse = null;
     }
 
+    pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
+        element.MainRect.mesh.setWidth(ui.width - (button_width * 3));
+        ui.widgetAt(WidgetIndex.MinimizeButton).onWindowSizeChanged(ui);
+        ui.widgetAt(WidgetIndex.MaximizeRestoreButton).onWindowSizeChanged(ui);
+        ui.widgetAt(WidgetIndex.CloseButton).onWindowSizeChanged(ui);
+    }
+
     pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
-        return ui.quadAt(Index.MainRect.Quad).containsY(ui.cursor_y);
+        return element.MainRect.mesh.contains(ui.cursor_x, ui.cursor_y);
     }
 };
