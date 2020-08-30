@@ -1,6 +1,6 @@
 const UserInterface = @import("../user_interface.zig").UserInterface;
 const WidgetIndex = @import("widget_index.zig");
-const Background = @import("background.zig").Background;
+const Window = @import("window.zig").Window;
 const TitleBar = @import("title_bar.zig").TitleBar;
 const MinimizeButton = @import("minimize_button.zig").MinimizeButton;
 const MaximizeRestoreButton = @import("maximize_restore_button.zig").MaximizeRestoreButton;
@@ -8,7 +8,7 @@ const CloseButton = @import("close_button.zig").CloseButton;
 const SearchBar = @import("search_bar.zig").SearchBar;
 
 pub var app_widgets = [_]Widget{
-    .{ .Background = .{} },
+    .{ .Window = .{} },
     .{ .TitleBar = .{} },
     .{ .MinimizeButton = .{} },
     .{ .MaximizeRestoreButton = .{} },
@@ -18,12 +18,12 @@ pub var app_widgets = [_]Widget{
 
 pub var root_app_widgets = [_]*Widget{
     &app_widgets[WidgetIndex.TitleBar],
-    &app_widgets[WidgetIndex.Background],
+    &app_widgets[WidgetIndex.Window],
     &app_widgets[WidgetIndex.SearchBar],
 };
 
 pub const Widget = union(enum) {
-    Background: Background,
+    Window: Window,
     TitleBar: TitleBar,
     MinimizeButton: MinimizeButton,
     MaximizeRestoreButton: MaximizeRestoreButton,
@@ -36,7 +36,7 @@ pub const Widget = union(enum) {
 
     pub fn init(self: *Widget, ui: *UserInterface) !void {
         try switch (self.*) {
-            .Background => |*b| b.init(ui),
+            .Window => |*b| b.init(ui),
             .TitleBar => |*t| t.init(ui),
             .MinimizeButton => |*m| m.init(ui),
             .MaximizeRestoreButton => |*m| m.init(ui),
@@ -89,7 +89,7 @@ pub const Widget = union(enum) {
 
     pub fn onFocus(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .SearchBar => |*s| s.onFocus(self, ui),
+            .SearchBar => |*s| s.onFocus(ui),
             else => {},
         }
     }
@@ -107,7 +107,7 @@ pub const Widget = union(enum) {
             .MinimizeButton => |*m| m.onLeftMouseDown(ui),
             .MaximizeRestoreButton => |*m| m.onLeftMouseDown(ui),
             .CloseButton => |*c| c.onLeftMouseDown(ui),
-            .SearchBar => |*s| s.onLeftMouseDown(self, ui),
+            .SearchBar => |*s| s.onLeftMouseDown(ui),
             else => {},
         }
     }
@@ -131,7 +131,7 @@ pub const Widget = union(enum) {
 
     pub inline fn onWindowSizeChanged(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .Background => |*b| b.onWindowSizeChanged(ui),
+            .Window => |*b| b.onWindowSizeChanged(ui),
             .TitleBar => |*t| t.onWindowSizeChanged(ui),
             .MinimizeButton => |*m| m.onWindowSizeChanged(ui),
             .MaximizeRestoreButton => |*m| m.onWindowSizeChanged(ui),

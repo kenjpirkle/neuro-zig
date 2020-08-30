@@ -1,6 +1,6 @@
 const Colour = @import("../gl/colour.zig").Colour;
 
-pub const Background = struct {
+pub const Window = struct {
     pub const Default = Colour.fromRgbaInt(40, 44, 52, 255);
 };
 

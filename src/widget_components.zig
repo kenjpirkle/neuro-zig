@@ -3,7 +3,7 @@ const Rectangle = @import("gl/rectangle.zig").Rectangle;
 const ColourReference = @import("gl/colour_reference.zig").ColourReference;
 const DrawArraysIndirectCommand = @import("gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 
-pub const Background = struct {
+pub const Window = struct {
     pub var mesh: Rectangle = undefined;
     pub var colour_reference: ColourReference = undefined;
 };

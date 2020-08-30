@@ -4,9 +4,9 @@ const ColourReference = @import("../gl/colour_reference.zig").ColourReference;
 const Rectangle = @import("../gl/rectangle.zig").Rectangle;
 const Colour = @import("../gl/colour.zig").Colour;
 const Colours = @import("widget_colours.zig");
-const element = @import("../widget_components.zig").Background;
+const element = @import("../widget_components.zig").Window;
 
-pub const Background = struct {
+pub const Window = struct {
     const Self = @This();
 
     parent: ?*Widget = null,
@@ -14,7 +14,7 @@ pub const Background = struct {
     pub fn init(self: *Self, ui: *UserInterface) !void {
         element.colour_reference.init(
             ui,
-            Colours.Background.Default,
+            Colours.Window.Default,
         );
         element.mesh.init(ui);
         element.mesh.setTransform(.{
