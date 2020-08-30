@@ -9,6 +9,7 @@ const Colour = @import("../gl/colour.zig").Colour;
 const Colours = @import("widget_colours.zig").SearchBar;
 const DrawArraysIndirectCommand = @import("../gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 const element = @import("../widget_components.zig").SearchBar;
+const utils = @import("../utils.zig");
 usingnamespace @import("../c.zig");
 
 pub const SearchBar = packed struct {
@@ -28,7 +29,6 @@ pub const SearchBar = packed struct {
     last_visible_char: u8 = 0,
     search_string_length: u8 = 0,
     text_navigation_mode: bool = false,
-    input_handled: bool = false,
 
     pub fn init(self: *Self, ui: *UserInterface) !void {
         element.Body.MainRect.colour_references[0].init(ui, Colours.MainRect.Top.Default);
@@ -344,16 +344,19 @@ pub const SearchBar = packed struct {
         ui.draw_required = true;
     }
 
-    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface) void {
-        if (!(ui.widget_with_focus == Widget.fromChild(self))) {
-            self.onFocus(widget, ui);
+    pub fn onLeftMouseDown(self: *Self, ui: *UserInterface) void {
+        const widget = Widget.fromChild(self);
+
+        if (ui.widget_with_focus != widget) {
+            self.onFocus(ui);
         }
 
         self.elapsed_ns = 0;
     }
 
-    pub fn onFocus(self: *Self, widget: *Widget, ui: *UserInterface) void {
-        ui.widget_with_focus = Widget.fromChild(self);
+    pub fn onFocus(self: *Self, ui: *UserInterface) void {
+        const widget = Widget.fromChild(self);
+        ui.widget_with_focus = widget;
 
         element.FocusHighlight.colour_reference.reference.alpha = Colour.intVal(185);
         element.TextCursor.colour_reference.reference.alpha = Colour.intVal(220);
@@ -449,8 +452,13 @@ pub const SearchBar = packed struct {
         ui.animating = true;
     }
 
-    inline fn moveCursor(self: *Self, ui: *UserInterface, advance: i32) void {
-        const x = @intCast(u32, @as(i33, element.TextCursor.mesh.originX()) + advance);
+    inline fn moveCursorLeft(self: *Self, ui: *UserInterface, amount: u32) void {
+        const x = element.TextCursor.mesh.originX() - amount;
+        element.TextCursor.mesh.translateX(x);
+    }
+
+    inline fn moveCursorRight(self: *Self, ui: *UserInterface, amount: u32) void {
+        const x = element.TextCursor.mesh.originX() + amount;
         element.TextCursor.mesh.translateX(x);
     }
 
@@ -507,7 +515,7 @@ pub const SearchBar = packed struct {
         self.cursor_position += 1;
         self.search_string_length += 1;
 
-        self.moveCursor(ui, @intCast(i32, glyph.advance));
+        self.moveCursorRight(ui, glyph.advance);
         self.updateText(ui, self.search_string_length);
     }
 
@@ -535,7 +543,7 @@ pub const SearchBar = packed struct {
             self.cursor_position -= 1;
             self.search_string_length -= 1;
 
-            self.moveCursor(ui, @bitCast(i32, -%char_advance));
+            self.moveCursorLeft(ui, char_advance);
             self.updateText(ui, self.search_string_length);
         }
     }
@@ -570,8 +578,7 @@ pub const SearchBar = packed struct {
             const prev_char = element.SearchText.UserText.meshes[self.cursor_position - 1].vertices[0].material;
             const char_advance = ui.default_shader.font.glyphs[prev_char].advance;
 
-            const negative_advance = @intCast(i32, -%char_advance);
-            self.moveCursor(ui, negative_advance);
+            self.moveCursorLeft(ui, char_advance);
             self.cursor_position -= 1;
             self.cursor_text_origin -= @intCast(u16, char_advance);
         }
@@ -582,7 +589,7 @@ pub const SearchBar = packed struct {
             const next_char = element.SearchText.UserText.meshes[self.cursor_position].vertices[0].material;
             const char_advance = ui.default_shader.font.glyphs[next_char].advance;
 
-            self.moveCursor(ui, @intCast(i32, char_advance));
+            self.moveCursorRight(ui, char_advance);
             self.cursor_position += 1;
             self.cursor_text_origin += @intCast(u16, char_advance);
         }
@@ -604,7 +611,7 @@ pub const SearchBar = packed struct {
         const old_cursor_text_origin = self.cursor_text_origin;
         // insert pasted characters
         const available_space = search_text_limit - self.search_string_length;
-        var cursor_advance: i32 = 0;
+        var cursor_advance: u32 = 0;
         i = 0;
         while (clipboard[i] != 0 and i < available_space) : (i += 1) {
             const c = @intCast(u8, clipboard[i]);
@@ -627,7 +634,7 @@ pub const SearchBar = packed struct {
             element.SearchText.UserText.meshes[self.cursor_position + i].setMaterial(c);
 
             self.cursor_text_origin += @intCast(u16, glyph.advance);
-            cursor_advance += @intCast(i32, glyph.advance);
+            cursor_advance += glyph.advance;
         }
 
         self.cursor_position += @intCast(u8, i);
@@ -641,7 +648,7 @@ pub const SearchBar = packed struct {
             element.SearchText.UserText.meshes[self.cursor_position + i].translateXBy(new_offset);
         }
 
-        self.moveCursor(ui, cursor_advance);
+        self.moveCursorRight(ui, cursor_advance);
         self.updateText(ui, self.search_string_length);
     }
 
