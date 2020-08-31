@@ -4,8 +4,29 @@ const ColourReference = @import("gl/colour_reference.zig").ColourReference;
 const DrawArraysIndirectCommand = @import("gl/draw_arrays_indirect_command.zig").DrawArraysIndirectCommand;
 
 pub const Window = struct {
-    pub var mesh: Rectangle = undefined;
-    pub var colour_reference: ColourReference = undefined;
+    pub const Background = struct {
+        pub var mesh: Rectangle = undefined;
+        pub var colour_reference: ColourReference = undefined;
+    };
+
+    pub const Shadow = struct {
+        pub const Top = struct {
+            pub var mesh: Rectangle = undefined;
+            pub var colour_reference: ColourReference = undefined;
+        };
+        pub const Left = struct {
+            pub var mesh: Rectangle = undefined;
+            pub var colour_reference: ColourReference = undefined;
+        };
+        pub const Right = struct {
+            pub var mesh: Rectangle = undefined;
+            pub var colour_reference: ColourReference = undefined;
+        };
+        pub const Bottom = struct {
+            pub var mesh: Rectangle = undefined;
+            pub var colour_reference: ColourReference = undefined;
+        };
+    };
 };
 
 pub const TitleBar = struct {
