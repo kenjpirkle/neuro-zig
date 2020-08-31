@@ -9,25 +9,23 @@ const element = @import("../widget_components.zig").Window;
 pub const Window = struct {
     const Self = @This();
 
-    parent: ?*Widget = null,
-
     pub fn init(self: *Self, ui: *UserInterface) !void {
-        element.colour_reference.init(
+        element.Background.colour_reference.init(
             ui,
-            Colours.Window.Default,
+            Colours.Window.Background.Default,
         );
-        element.mesh.init(ui);
-        element.mesh.setTransform(.{
+        element.Background.mesh.init(ui);
+        element.Background.mesh.setTransform(.{
             .position = .{ .x = 0, .y = 0 },
             .width = ui.width,
             .height = ui.height,
             .layer = 1,
         });
-        element.mesh.setSolidColour(element.colour_reference);
-        element.mesh.setMaterial(1);
+        element.Background.mesh.setSolidColour(element.Background.colour_reference);
+        element.Background.mesh.setMaterial(1);
     }
 
     pub fn onWindowSizeChanged(self: *Self, ui: *UserInterface) void {
-        element.mesh.resize(ui.width, ui.height);
+        element.Background.mesh.resize(ui.width, ui.height);
     }
 };
