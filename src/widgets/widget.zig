@@ -47,6 +47,7 @@ pub const Widget = union(enum) {
 
     pub fn onCursorPositionChanged(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
+            .Window => |*w| w.onCursorPositionChanged(ui),
             .TitleBar => |*t| t.onCursorPositionChanged(ui),
             .SearchBar => |*s| s.onCursorPositionChanged(ui),
             else => {},
@@ -55,6 +56,7 @@ pub const Widget = union(enum) {
 
     pub fn onCursorEnter(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
+            .Window => |*w| w.onCursorEnter(ui),
             .MinimizeButton => |*m| m.onCursorEnter(ui),
             .MaximizeRestoreButton => |*m| m.onCursorEnter(ui),
             .CloseButton => |*c| c.onCursorEnter(ui),
@@ -65,6 +67,7 @@ pub const Widget = union(enum) {
 
     pub fn onCursorLeave(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
+            .Window => |*w| w.onCursorLeave(ui),
             .MinimizeButton => |*m| m.onCursorLeave(ui),
             .MaximizeRestoreButton => |*m| m.onCursorLeave(ui),
             .CloseButton => |*c| c.onCursorLeave(ui),
@@ -103,17 +106,18 @@ pub const Widget = union(enum) {
 
     pub fn onLeftMouseDown(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .TitleBar => |*t| t.onLeftMouseDown(self, ui),
+            .Window => |*w| w.onLeftMouseDown(ui),
+            .TitleBar => |*t| t.onLeftMouseDown(ui),
             .MinimizeButton => |*m| m.onLeftMouseDown(ui),
             .MaximizeRestoreButton => |*m| m.onLeftMouseDown(ui),
             .CloseButton => |*c| c.onLeftMouseDown(ui),
             .SearchBar => |*s| s.onLeftMouseDown(ui),
-            else => {},
         }
     }
 
     pub fn onLeftMouseUp(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
+            .Window => |*w| w.onLeftMouseUp(ui),
             .TitleBar => |*t| t.onLeftMouseUp(ui),
             .MinimizeButton => |*m| m.onLeftMouseUp(ui),
             .MaximizeRestoreButton => |*m| m.onLeftMouseUp(ui),
@@ -124,6 +128,7 @@ pub const Widget = union(enum) {
 
     pub fn onDrag(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
+            .Window => |*w| w.onDrag(ui),
             .TitleBar => |*t| t.onDrag(ui),
             else => {},
         }
@@ -142,6 +147,7 @@ pub const Widget = union(enum) {
 
     pub inline fn containsPoint(self: *Widget, ui: *UserInterface) bool {
         switch (self.*) {
+            .Window => |*w| return w.containsPoint(ui),
             .TitleBar => |*t| return t.containsPoint(ui),
             .MinimizeButton => |*m| return m.containsPoint(ui),
             .MaximizeRestoreButton => |*m| return m.containsPoint(ui),
