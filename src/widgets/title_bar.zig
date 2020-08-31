@@ -66,8 +66,8 @@ pub const TitleBar = packed struct {
         ui.input_handled = true;
     }
 
-    pub fn onLeftMouseDown(self: *Self, widget: *Widget, ui: *UserInterface) void {
-        ui.widget_with_mouse = widget;
+    pub fn onLeftMouseDown(self: *Self, ui: *UserInterface) void {
+        ui.widget_with_mouse = Widget.fromChild(self);
         var xpos: f64 = undefined;
         var ypos: f64 = undefined;
         glfwGetCursorPos(ui.window, &xpos, &ypos);
