@@ -122,11 +122,10 @@ pub const MaximizeRestoreButton = struct {
     pub fn onLeftMouseUp(self: *Self, ui: *UserInterface) void {
         element.Body.colour_reference.reference.alpha = Colours.Body.Default.alpha;
         element.Icon.colour_reference.reference.alpha = Colours.Icon.Default.alpha;
-        const is_maximized = glfwGetWindowAttrib(ui.window, GLFW_MAXIMIZED);
-        if (is_maximized == 0) {
-            glfwMaximizeWindow(ui.window);
-        } else {
+        if (ui.isMaximized()) {
             glfwRestoreWindow(ui.window);
+        } else {
+            glfwMaximizeWindow(ui.window);
         }
         ui.widget_with_cursor = null;
         ui.input_handled = true;
@@ -141,6 +140,10 @@ pub const MaximizeRestoreButton = struct {
     }
 
     pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
-        return element.Body.mesh.contains(ui.cursor_x, ui.cursor_y);
+        if (ui.isMaximized()) {
+            return element.Body.mesh.contains(ui.cursor_x, ui.cursor_y);
+        } else {
+            return (ui.cursor_y >= 6 and ui.cursor_y < TitleBar.titlebar_height) and element.Body.mesh.containsX(ui.cursor_x);
+        }
     }
 };

@@ -127,6 +127,10 @@ pub const CloseButton = struct {
     }
 
     pub fn containsPoint(self: *Self, ui: *UserInterface) bool {
-        return element.Body.mesh.contains(ui.cursor_x, ui.cursor_y);
+        if (ui.isMaximized()) {
+            return element.Body.mesh.contains(ui.cursor_x, ui.cursor_y);
+        } else {
+            return (ui.cursor_y >= 6 and ui.cursor_y < 29) and (ui.cursor_x >= element.Body.mesh.originX() and ui.cursor_x < ui.width - 6);
+        }
     }
 };
