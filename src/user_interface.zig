@@ -223,6 +223,7 @@ pub const UserInterface = struct {
         glfwSetWindowSizeLimits(self.window, 500, 200, GLFW_DONT_CARE, GLFW_DONT_CARE);
         glfwSetWindowUserPointer(self.window, @ptrCast(*c_void, self));
         _ = glfwSetWindowSizeCallback(self.window, onWindowSizeChanged);
+        _ = glfwSetWindowMaximizeCallback(self.window, onWindowMaximized);
         _ = glfwSetWindowPosCallback(self.window, onWindowPosChanged);
         _ = glfwSetMouseButtonCallback(self.window, onMouseButtonEvent);
         _ = glfwSetCursorPosCallback(self.window, onCursorPositionChanged);
@@ -266,6 +267,8 @@ pub const UserInterface = struct {
         }
         ui.display();
     }
+
+    fn onWindowMaximized(win: ?*GLFWwindow, maximized: c_int) callconv(.C) void {}
 
     fn onWindowPosChanged(win: ?*GLFWwindow, x_pos: i32, y_pos: i32) callconv(.C) void {
         const ui = getUserPointer(win);
@@ -424,6 +427,11 @@ pub const UserInterface = struct {
         while (i < count) : (i += 1) {
             warn("file: {s}\n", .{paths[i]});
         }
+    }
+
+    pub inline fn isMaximized(self: *Self) bool {
+        const is_maximized = glfwGetWindowAttrib(self.window, GLFW_MAXIMIZED);
+        return is_maximized != 0;
     }
 
     pub inline fn addAnimatingWidget(self: *Self, widget: *Widget) void {
