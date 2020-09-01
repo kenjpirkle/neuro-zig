@@ -1,6 +1,6 @@
 const UserInterface = @import("../user_interface.zig").UserInterface;
 const WidgetIndex = @import("widget_index.zig");
-const Window = @import("window.zig").Window;
+usingnamespace @import("window.zig");
 const TitleBar = @import("title_bar.zig").TitleBar;
 const MinimizeButton = @import("minimize_button.zig").MinimizeButton;
 const MaximizeRestoreButton = @import("maximize_restore_button.zig").MaximizeRestoreButton;
@@ -9,6 +9,14 @@ const SearchBar = @import("search_bar.zig").SearchBar;
 
 pub var app_widgets = [_]Widget{
     .{ .Window = .{} },
+    .{ .BorderTopLeft = .{} },
+    .{ .BorderTop = .{} },
+    .{ .BorderTopRight = .{} },
+    .{ .BorderLeft = .{} },
+    .{ .BorderRight = .{} },
+    .{ .BorderBottomLeft = .{} },
+    .{ .BorderBottom = .{} },
+    .{ .BorderBottomRight = .{} },
     .{ .TitleBar = .{} },
     .{ .MinimizeButton = .{} },
     .{ .MaximizeRestoreButton = .{} },
@@ -17,13 +25,21 @@ pub var app_widgets = [_]Widget{
 };
 
 pub var root_app_widgets = [_]*Widget{
-    &app_widgets[WidgetIndex.TitleBar],
     &app_widgets[WidgetIndex.Window],
+    &app_widgets[WidgetIndex.TitleBar],
     &app_widgets[WidgetIndex.SearchBar],
 };
 
 pub const Widget = union(enum) {
     Window: Window,
+    BorderTopLeft: BorderTopLeft,
+    BorderTop: BorderTop,
+    BorderTopRight: BorderTopRight,
+    BorderLeft: BorderLeft,
+    BorderRight: BorderRight,
+    BorderBottomLeft: BorderBottomLeft,
+    BorderBottom: BorderBottom,
+    BorderBottomRight: BorderBottomRight,
     TitleBar: TitleBar,
     MinimizeButton: MinimizeButton,
     MaximizeRestoreButton: MaximizeRestoreButton,
@@ -42,6 +58,7 @@ pub const Widget = union(enum) {
             .MaximizeRestoreButton => |*m| m.init(ui),
             .CloseButton => |*c| c.init(ui),
             .SearchBar => |*s| s.init(ui),
+            else => {},
         };
     }
 
@@ -56,7 +73,14 @@ pub const Widget = union(enum) {
 
     pub fn onCursorEnter(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .Window => |*w| w.onCursorEnter(ui),
+            .BorderTopLeft => |*b| b.onCursorEnter(self, ui),
+            .BorderTop => |*b| b.onCursorEnter(self, ui),
+            .BorderTopRight => |*b| b.onCursorEnter(self, ui),
+            .BorderLeft => |*b| b.onCursorEnter(self, ui),
+            .BorderRight => |*b| b.onCursorEnter(self, ui),
+            .BorderBottomLeft => |*b| b.onCursorEnter(self, ui),
+            .BorderBottom => |*b| b.onCursorEnter(self, ui),
+            .BorderBottomRight => |*b| b.onCursorEnter(self, ui),
             .MinimizeButton => |*m| m.onCursorEnter(ui),
             .MaximizeRestoreButton => |*m| m.onCursorEnter(ui),
             .CloseButton => |*c| c.onCursorEnter(ui),
@@ -67,7 +91,14 @@ pub const Widget = union(enum) {
 
     pub fn onCursorLeave(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .Window => |*w| w.onCursorLeave(ui),
+            .BorderTopLeft => |*b| b.onCursorLeave(ui),
+            .BorderTop => |*b| b.onCursorLeave(ui),
+            .BorderTopRight => |*b| b.onCursorLeave(ui),
+            .BorderLeft => |*b| b.onCursorLeave(ui),
+            .BorderRight => |*b| b.onCursorLeave(ui),
+            .BorderBottomLeft => |*b| b.onCursorLeave(ui),
+            .BorderBottom => |*b| b.onCursorLeave(ui),
+            .BorderBottomRight => |*b| b.onCursorLeave(ui),
             .MinimizeButton => |*m| m.onCursorLeave(ui),
             .MaximizeRestoreButton => |*m| m.onCursorLeave(ui),
             .CloseButton => |*c| c.onCursorLeave(ui),
@@ -106,18 +137,19 @@ pub const Widget = union(enum) {
 
     pub fn onLeftMouseDown(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .Window => |*w| w.onLeftMouseDown(ui),
+            // .Window => |*w| w.onLeftMouseDown(ui),
             .TitleBar => |*t| t.onLeftMouseDown(ui),
             .MinimizeButton => |*m| m.onLeftMouseDown(ui),
             .MaximizeRestoreButton => |*m| m.onLeftMouseDown(ui),
             .CloseButton => |*c| c.onLeftMouseDown(ui),
             .SearchBar => |*s| s.onLeftMouseDown(ui),
+            else => {},
         }
     }
 
     pub fn onLeftMouseUp(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .Window => |*w| w.onLeftMouseUp(ui),
+            // .Window => |*w| w.onLeftMouseUp(ui),
             .TitleBar => |*t| t.onLeftMouseUp(ui),
             .MinimizeButton => |*m| m.onLeftMouseUp(ui),
             .MaximizeRestoreButton => |*m| m.onLeftMouseUp(ui),
@@ -128,7 +160,6 @@ pub const Widget = union(enum) {
 
     pub fn onDrag(self: *Widget, ui: *UserInterface) void {
         switch (self.*) {
-            .Window => |*w| w.onDrag(ui),
             .TitleBar => |*t| t.onDrag(ui),
             else => {},
         }
@@ -142,18 +173,32 @@ pub const Widget = union(enum) {
             .MaximizeRestoreButton => |*m| m.onWindowSizeChanged(ui),
             .CloseButton => |*c| c.onWindowSizeChanged(ui),
             .SearchBar => |*s| s.onWindowSizeChanged(ui),
+            else => {},
+        }
+    }
+
+    pub inline fn onMaximized(self: *Widget, ui: *UserInterface) void {
+        switch (self.*) {
+            else => {},
         }
     }
 
     pub inline fn containsPoint(self: *Widget, ui: *UserInterface) bool {
         switch (self.*) {
-            .Window => |*w| return w.containsPoint(ui),
+            .BorderTopLeft => |*b| return b.containsPoint(ui),
+            .BorderTop => |*b| return b.containsPoint(ui),
+            .BorderTopRight => |*b| return b.containsPoint(ui),
+            .BorderLeft => |*b| return b.containsPoint(ui),
+            .BorderRight => |*b| return b.containsPoint(ui),
+            .BorderBottomLeft => |*b| return b.containsPoint(ui),
+            .BorderBottom => |*b| return b.containsPoint(ui),
+            .BorderBottomRight => |*b| return b.containsPoint(ui),
             .TitleBar => |*t| return t.containsPoint(ui),
             .MinimizeButton => |*m| return m.containsPoint(ui),
             .MaximizeRestoreButton => |*m| return m.containsPoint(ui),
             .CloseButton => |*c| return c.containsPoint(ui),
             .SearchBar => |*s| return s.containsPoint(ui),
-            else => unreachable,
+            else => return false,
         }
     }
 
