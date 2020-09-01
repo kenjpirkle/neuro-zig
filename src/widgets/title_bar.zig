@@ -44,16 +44,31 @@ pub const TitleBar = packed struct {
     pub fn onCursorPositionChanged(self: *Self, ui: *UserInterface) void {
         const curx = ui.cursor_x;
 
-        if (ui.cursor_y >= 0 and ui.cursor_y < titlebar_height and curx >= 0) {
-            if (curx < element.MinimizeButton.Body.mesh.originX()) {
-                ui.widget_with_cursor = Widget.fromChild(self);
-                ui.input_handled = true;
-            } else if (curx < element.MaximizeRestoreButton.Body.mesh.originX()) {
-                ui.widgetAt(WidgetIndex.MinimizeButton).onCursorEnter(ui);
-            } else if (curx < element.CloseButton.Body.mesh.originX()) {
-                ui.widgetAt(WidgetIndex.MaximizeRestoreButton).onCursorEnter(ui);
-            } else if (curx < ui.width) {
-                ui.widgetAt(WidgetIndex.CloseButton).onCursorEnter(ui);
+        if (ui.isMaximized()) {
+            if (ui.cursor_y >= 0 and ui.cursor_y < titlebar_height and curx >= 0) {
+                if (curx < element.MinimizeButton.Body.mesh.originX()) {
+                    ui.widget_with_cursor = Widget.fromChild(self);
+                    ui.input_handled = true;
+                } else if (curx < element.MaximizeRestoreButton.Body.mesh.originX()) {
+                    ui.widgetAt(WidgetIndex.MinimizeButton).onCursorEnter(ui);
+                } else if (curx < element.CloseButton.Body.mesh.originX()) {
+                    ui.widgetAt(WidgetIndex.MaximizeRestoreButton).onCursorEnter(ui);
+                } else if (curx < ui.width) {
+                    ui.widgetAt(WidgetIndex.CloseButton).onCursorEnter(ui);
+                }
+            }
+        } else {
+            if (ui.cursor_y >= 4 and ui.cursor_y < titlebar_height and curx >= 4) {
+                if (curx < element.MinimizeButton.Body.mesh.originX()) {
+                    ui.widget_with_cursor = Widget.fromChild(self);
+                    ui.input_handled = true;
+                } else if (curx < element.MaximizeRestoreButton.Body.mesh.originX()) {
+                    ui.widgetAt(WidgetIndex.MinimizeButton).onCursorEnter(ui);
+                } else if (curx < element.CloseButton.Body.mesh.originX()) {
+                    ui.widgetAt(WidgetIndex.MaximizeRestoreButton).onCursorEnter(ui);
+                } else if (curx < ui.width - 4) {
+                    ui.widgetAt(WidgetIndex.CloseButton).onCursorEnter(ui);
+                }
             }
         }
     }
